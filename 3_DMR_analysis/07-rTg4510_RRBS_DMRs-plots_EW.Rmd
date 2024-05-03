@@ -1,0 +1,288 @@
+---
+title: "rTg4510 DMR Plots"
+author: "Emma Walker"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(BiSeq)
+library(kableExtra)
+library(dplyr)
+```
+  
+```{r, warning=F, message=FALSE, echo = F}
+source("/gpfs/ts0/projects/Research_Project-191406/EmmaW/PlotFunctions.R")
+source("/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/modified_plot_functions.R")
+load("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_predictedMeth_rTg4510.RData") 
+color_rTg4510_TG <- "#00AEC9"
+
+
+# read in DMP data files
+# full model
+filename <- "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510/DMPsInteractionModel_stats_table_rTg4510.csv"
+DMPs <- read.csv(filename, stringsAsFactors = F, header = T)
+colnames(DMPs)[1] <- "Location"
+
+# pathology model
+filename <- "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510/DMPsPathology_stats_table_rTg4510.csv"
+PathologyDMPs <- read.csv(filename, stringsAsFactors = F, header = T)
+colnames(PathologyDMPs)[1] <- "Location"
+
+# output directory for pdf 
+output <- "/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/Figures"
+
+```
+# NB: the p values shown in the tables below are extracted from the DMP stats tables: DMPsInteractionModel_stats_table_rTg4510.csv (genotype and interacton) and DMPsPathology_stats_table_rTg4510.csv
+
+# NB: only DMRs which have a width > 2 are included here
+  
+## Genotype 
+  
+```{r, echo = F, warning=F, message=FALSE, results='asis'}
+
+
+
+
+# if statement to skip if there is no DMRs on the csv file
+filename <- "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMRs/rTg4510/DMRsGenotype.csv"
+
+##plots
+
+x <- count.fields(filename)
+if(x > 1) {
+  DMRsGenotype <- read.csv(filename, stringsAsFactors = F, header = T)
+  
+  #remove DMRs < 3 and order by pvalue
+  DMRsGenotype <- DMRsGenotype[which(DMRsGenotype$width >2),]
+  DMRsGenotype <- DMRsGenotype[order(DMRsGenotype$median.p),]
+  
+  for(i in 1:nrow(DMRsGenotype)){
+
+    
+    #plotDMRGenotype(i, cols = c("#000000", color_rTg4510_TG ), groups = c("WT", "TG"), predictedMeth = predictedMeth, DMR_df = DMRsGenotype)
+    plotDMRGenotypeMedian(i, cols = c("#000000", color_rTg4510_TG ), groups = c("WT", "TG"), predictedMeth = predictedMeth, DMR_df = DMRsGenotype)
+    
+
+## tables    
+    
+betas <- as.matrix(methLevel(predictedMeth))
+coordinates <- as.data.frame(predictedMeth@rowRanges)
+pheno <- as.data.frame(predictedMeth@colData)
+DMR_df = DMRsGenotype
+DMR_df <- as.data.frame(DMR_df)
+coordinates$position <- rownames(coordinates)
+DMR_df$seqnames <- as.character(DMR_df$seqnames)
+region = i
+DMR <- DMR_df[region,]
+
+
+# Select Cluster where this DMR lies
+#check cluster id
+Cluster_DMR_Chr <- coordinates[which(coordinates$seqnames == DMR[,"seqnames"]),]
+cluster <- Cluster_DMR_Chr[which(Cluster_DMR_Chr$start == DMR[,"start"]), "cluster.id"]
+
+
+#pull out cluster from coordinates and betas
+coordinates_cluster <- Cluster_DMR_Chr[which(Cluster_DMR_Chr$cluster.id == cluster),]
+betas_cluster <- betas[rownames(betas) %in% coordinates_cluster$position,]
+
+# add in DMR info (start/end)
+coordinates_cluster$DMR_info <- rep(NA)
+coordinates_cluster$DMR_info[which(coordinates_cluster$start == DMR$start)] <- "Start"
+coordinates_cluster$DMR_info[which(coordinates_cluster$end == DMR$end)] <- "End"
+
+# add in DMR info (in DMR T/F)
+coordinates_cluster$inDMR <- rep(NA)
+for(j in 1:nrow(coordinates_cluster)){
+  coordinates_cluster$inDMR[j] <- between(coordinates_cluster$start[j], DMR$start, DMR$end)
+}
+
+
+# add in Pvalue
+coordinates_cluster$Location <- paste0(coordinates_cluster$seqnames, ":", coordinates_cluster$start)
+coordinates_cluster <- left_join(coordinates_cluster, DMPs %>% dplyr::select(Location, p.val.Genotype))
+coordinates_cluster$p.val.Genotype <- format(coordinates_cluster$p.val.Genotype, digits = 3)
+    
+tab <- coordinates_cluster %>%
+  kbl(caption = coordinates_cluster$cluster.id[1], escape = F) %>%
+  kable_classic(full_width = F, position = "center") %>%
+column_spec(column = 1, width = "0.5in") %>%
+   column_spec(column = 2:11, width = "1in")
+
+print(tab)
+cat('\n\n<!-- -->\n\n')
+    
+  }
+} else {
+  print("No DMRs found")
+}
+
+
+# save output of first DMR 
+pdf(paste0(output,"/rTg4510_DMR_Arsi.pdf"),width = 8, height = 5)
+plotDMRGenotypeMedian(1, cols = c("#000000", color_rTg4510_TG ), groups = c("WT", "TG"), predictedMeth = predictedMeth, DMR_df = DMRsGenotype)
+dev.off()
+
+```
+  
+  
+  
+
+# Genotype*Age 
+  
+```{r, echo = F, warning=F, message=FALSE, results='asis'}
+
+filename <- "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMRs/rTg4510/DMRsInteraction.csv"
+
+x <- count.fields(filename)
+if(x > 1) {
+  DMRsInteraction <- read.csv(filename, stringsAsFactors = F, header = T)
+  for(i in 1:nrow(DMRsInteraction)){
+    plotDMRInteractionMedian(i, cols = c("black", "brown", "blue", "purple"), groups = c("WT","TG"), pch = c(1,2), lty = c(1,6),
+                             predictedMeth = predictedMeth, DMR_df = DMRsInteraction, ages = c(6,8,10,12))
+    
+  ## tables    
+    
+betas <- as.matrix(methLevel(predictedMeth))
+coordinates <- as.data.frame(predictedMeth@rowRanges)
+pheno <- as.data.frame(predictedMeth@colData)
+DMR_df = DMRsInteraction
+DMR_df <- as.data.frame(DMR_df)
+coordinates$position <- rownames(coordinates)
+DMR_df$seqnames <- as.character(DMR_df$seqnames)
+region = i
+DMR <- DMR_df[region,]
+
+
+# Select Cluster where this DMR lies
+#check cluster id
+Cluster_DMR_Chr <- coordinates[which(coordinates$seqnames == DMR[,"seqnames"]),]
+cluster <- Cluster_DMR_Chr[which(Cluster_DMR_Chr$start == DMR[,"start"]), "cluster.id"]
+
+
+#pull out cluster from coordinates and betas
+coordinates_cluster <- Cluster_DMR_Chr[which(Cluster_DMR_Chr$cluster.id == cluster),]
+betas_cluster <- betas[rownames(betas) %in% coordinates_cluster$position,]
+
+# add in DMR info (start/end)
+coordinates_cluster$DMR_info <- rep(NA)
+coordinates_cluster$DMR_info[which(coordinates_cluster$start == DMR$start)] <- "Start"
+coordinates_cluster$DMR_info[which(coordinates_cluster$end == DMR$end)] <- "End"
+
+# add in DMR info (in DMR T/F)
+coordinates_cluster$inDMR <- rep(NA)
+for(j in 1:nrow(coordinates_cluster)){
+  coordinates_cluster$inDMR[j] <- between(coordinates_cluster$start[j], DMR$start, DMR$end)
+}
+
+
+# add in Pvalue
+coordinates_cluster$Location <- paste0(coordinates_cluster$seqnames, ":", coordinates_cluster$start)
+coordinates_cluster <- left_join(coordinates_cluster, DMPs %>% dplyr::select(Location, p.val.Interaction))
+coordinates_cluster$p.val.Interaction <- format(coordinates_cluster$p.val.Interaction, digits = 3)
+    
+tab <- coordinates_cluster %>%
+  kbl(caption = coordinates_cluster$cluster.id[1], escape = F) %>%
+  kable_classic(full_width = F, position = "center") %>%
+column_spec(column = 1, width = "0.5in") %>%
+   column_spec(column = 2:11, width = "1in")
+    
+    print(tab)
+cat('\n\n<!-- -->\n\n')
+    
+  }
+} else {
+  print("No DMRs found")
+}
+
+```  
+
+  
+  
+  
+  
+# Pathology 
+
+  
+```{r, echo = F, warning=F, message=FALSE, results='asis'}
+
+filename <- "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMRs/rTg4510/DMRsPathology.csv"
+x <- count.fields(filename)
+
+
+  ### plots
+
+if(x > 1) {
+  DMRsPathology <- read.csv(filename, stringsAsFactors = F, header = T)
+  
+  #remove DMRs < 3 and order by pvalue
+  DMRsPathology <- DMRsPathology[which(DMRsPathology$width > 2),]
+  DMRsPathology <- DMRsPathology[order(DMRsPathology$median.p),]
+  
+  for(i in 1:10){
+    plotDMRInteractionMedian(i, cols = c("black", "brown", "blue", "purple"), groups = c("WT","TG"), pch = c(1,2), lty = c(1,6),
+                             predictedMeth = predictedMeth, DMR_df = DMRsPathology, ages = c(6,8,10,12))
+    
+    ## tables    
+    
+betas <- as.matrix(methLevel(predictedMeth))
+coordinates <- as.data.frame(predictedMeth@rowRanges)
+pheno <- as.data.frame(predictedMeth@colData)
+DMR_df = DMRsPathology
+DMR_df <- as.data.frame(DMR_df)
+coordinates$position <- rownames(coordinates)
+DMR_df$seqnames <- as.character(DMR_df$seqnames)
+region = i
+DMR <- DMR_df[region,]
+
+
+# Select Cluster where this DMR lies
+#check cluster id
+Cluster_DMR_Chr <- coordinates[which(coordinates$seqnames == DMR[,"seqnames"]),]
+cluster <- Cluster_DMR_Chr[which(Cluster_DMR_Chr$start == DMR[,"start"]), "cluster.id"]
+
+
+#pull out cluster from coordinates and betas
+coordinates_cluster <- Cluster_DMR_Chr[which(Cluster_DMR_Chr$cluster.id == cluster),]
+betas_cluster <- betas[rownames(betas) %in% coordinates_cluster$position,]
+
+# add in DMR info (start/end)
+coordinates_cluster$DMR_info <- rep(NA)
+coordinates_cluster$DMR_info[which(coordinates_cluster$start == DMR$start)] <- "Start"
+coordinates_cluster$DMR_info[which(coordinates_cluster$end == DMR$end)] <- "End"
+
+# add in DMR info (in DMR T/F)
+coordinates_cluster$inDMR <- rep(NA)
+for(j in 1:nrow(coordinates_cluster)){
+  coordinates_cluster$inDMR[j] <- between(coordinates_cluster$start[j], DMR$start, DMR$end)
+}
+
+
+# add in Pvalue
+coordinates_cluster$Location <- paste0(coordinates_cluster$seqnames, ":", coordinates_cluster$start)
+coordinates_cluster <- left_join(coordinates_cluster, PathologyDMPs %>% dplyr::select(Location, p.val.Pathology))
+coordinates_cluster$p.val.Pathology <- format(coordinates_cluster$p.val.Pathology, digits = 3)
+    
+tab <- coordinates_cluster %>%
+  kbl(caption = coordinates_cluster$cluster.id[1], escape = F) %>%
+  kable_classic(full_width = F, position = "center") %>%
+column_spec(column = 1, width = "0.5in") %>%
+   column_spec(column = 2:11, width = "1in")
+
+print(tab)
+cat('\n\n<!-- -->\n\n')
+    
+    
+  }
+} else {
+  print("No DMRs found")
+}
+
+```
+  
+

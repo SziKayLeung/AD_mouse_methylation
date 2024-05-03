@@ -1,0 +1,182 @@
+---
+title: "RRBS - BiSeq J20 Part 1"
+author: "Isabel Castanho (I.S.Castanho@exeter.ac.uk)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/')
+
+# # # load packages
+# # if (!requireNamespace("BiocManager", quietly = TRUE))
+# #     install.packages("BiocManager")
+# # 
+# # BiocManager::install("BiSeq")
+# 
+library(BiSeq)
+library(cgwtools) # package that allows to resave objects in R using resave(..., list = character(), file)
+
+load(file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_J20.RData")
+
+color_J20_TG <- "#FF5A62"
+
+# Phenotypic data
+coldata <- read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/J20_coldata_RRBS.csv", row.names=1, stringsAsFactors=FALSE)
+coldata$Age_months <- as.numeric(coldata$Age_months)
+coldata$Genotype <- as.factor(coldata$Genotype)
+coldata$Genotype <- relevel(coldata$Genotype, "WT")
+levels(coldata$Genotype)
+
+# ENTORHINAL CORTEX
+class(coldata$ECX)
+
+# Remove samples that have NA for pathology
+coldata_ECX <- coldata[,c("Genotype", "Age_months", "Histology_no", "ECX")]
+coldata_ECX_clean <- na.omit(coldata_ECX)
+coldata_pathology <- coldata_ECX_clean
+
+```
+
+**BiSeq**
+R/Bioconductor by K. Hebestreit et al.
+
+[Bioconductor](https://bioconductor.org/packages/release/bioc/html/BiSeq.html)  
+[User guide](https://bioconductor.org/packages/release/bioc/vignettes/BiSeq/inst/doc/BiSeq.pdf)  
+[Manual](https://bioconductor.org/packages/release/bioc/manuals/BiSeq/man/BiSeq.pdf)  
+[Paper](https://academic.oup.com/bioinformatics/article/29/13/1647/200453)  
+
+The package takes already aligned BS data from one or multiple samples.
+
+##  Import of Bismark’s methylation output files
+
+```{r}
+# sample_names <- rownames(coldata)
+# infile <- list.files("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/BismarkOutput/J20/",
+#                      pattern = "bismark.cov.gz",
+#                      all.files=TRUE,
+#                      full.names=TRUE,
+#                      recursive=FALSE,
+#                      ignore.case=FALSE,
+#                      include.dirs=FALSE,
+#                      no..=TRUE)
+# 
+# rrbs <- readBismark(files = infile, colData = coldata)
+# # files: A character pointing to cov files created by Bismark’s methylation_extractor and bismark2bedGraph
+# # colData: Samples’ names plus additional sample information ascharacter,data.frameorDataFrame
+# # value: A BSrawobject storing coverage and methylation information
+# 
+# save(rrbs,
+#        file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_J20.RData")
+```
+
+##   Quality control
+### Coverage
+```{r fig1, fig.height = 20, fig.width = 15, fig.cap = "Figure 1:  Sample wise coverage distributions"}
+covBoxplots(rrbs, col = "cornflowerblue", las = 2)
+```
+
+## Detection of DMRs within groups of samples
+The algorithm to detect differentially methylated regions (DMRs) within two groups of samples (e.g.  cancer and control) is described in detail in [Hebestreit et al. (2013)](http://dx.doi.org/10.1093/bioinformatics/btt263,doi:10.1093/bioinformatics/btt263)
+
+The DMR detection is a five-steps approach:  
+1.  Definition of CpG clusters  
+2.  Smooth methylation data within CpG clusters  
+3.  Model and test group effect for each CpG site within CpG clusters  
+4.  Apply hierarchical testing procedure:  
+4.1.  Test CpG clusters for differential methylation and control weighted FDR on cluster  
+4.2.  Trim rejected CpG clusters and control FDR on single CpGs  
+5.  Define DMR boundaries  
+
+### 1.  Definition of CpG clusters
+In order to smooth the methylation data we first have to detect CpG clusters  (regions  with  a  high  spatial  density  of  covered  CpG  sites).
+
+```{r}
+# # Within a BSraw object clusterSites searches for agglomerations of CpG sites across all samples.
+# # In a first step the data is reduced to CpG sites covered in round(perc.samples*ncol(object)) samples (here:  5 samples), these are called ’frequently covered CpG sites’.
+# # In a second step regions are detected where not less than min.sites frequently covered CpG sites are sufficiantly close to each other (max.dist).
+# 
+# rrbs.clust.unlim <- clusterSites(object = rrbs,
+#                                  groups = colData(rrbs)$Genotype,
+#                                  perc.samples = 0.5,
+#                                  min.sites = 5,
+#                                  max.dist = 500)
+# # max.dist: check if output makes sense and perhaps change depending on distance of CpGs in output ##############################################
+# 
+# # rrbs.clust.unlimis a againBSrawobject but restricted to CpG sites withinCpG clusters.  Each CpG site is assigned to a cluster.
+# 
+# # The underlying CpG clusters can also be converted to aGRangesobject withthe start and end positions
+# GRangesobject <- clusterSitesToGR(rrbs.clust.unlim)
+# 
+# resave(rrbs.clust.unlim, GRangesobject,
+#        file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_J20.RData")
+```
+
+### 2. Smooth methylation data
+In the smoothing step CpG sites with high coverages get high weights. 
+To reduce bias due to unusually high coverages we limit the coverage,  e.g.  to the 90% quantile.
+```{r}
+# ind.cov <- totalReads(rrbs.clust.unlim) > 0
+# quant <- quantile(totalReads(rrbs.clust.unlim)[ind.cov], 0.9)
+# quant
+# rrbs.clust.lim <- limitCov(rrbs.clust.unlim, maxCov = quant)
+# 
+# # We then smooth the methylation values of CpG sites within the clusters with the default bandwidthh = 80 base pairs.
+# # It is possible - and recommended- to parallelize this step by settingmc.cores, to 6 cores for instance, if there are 6 available.
+# 
+# predictedMeth <- predictMeth(object = rrbs.clust.lim, mc.cores = 6)
+# # predictedMeth is a BSrel object with smoothed relative methylation levels for each CpG site within CpG clusters
+# 
+# resave(rrbs.clust.lim, predictedMeth,
+#      file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_J20.RData")
+# save(predictedMeth,
+#      file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_predictedMeth_J20.RData")
+```
+
+###  Coverage distributions after coverage limitation
+```{r fig2, fig.height = 20, fig.width = 15, fig.cap = "Figure 2:  Sample wise coverage distributions after coverage limitation"}
+covBoxplots(rrbs.clust.lim, col = "cornflowerblue", las = 2)
+```
+
+```{r}
+# rangesClusters <- clusterSitesToGR(rrbs.clust.unlim)
+```
+
+
+### Effect of the smoothing step
+```{r fig3, fig.cap = "Figure 3:  Raw data together with smoothed methylation levels"} 
+# The effect of the smoothing step can be shown with the plotMethfunction
+# rangesClusters[which(seqnames(rangesClusters) == "chr12")]
+region <- GRanges(seqnames = "chr12", ranges = IRanges(start = 119827061, end = 119827870))
+plotMeth(object.raw = rrbs[,16],
+         object.rel = predictedMeth[,16],
+         region = region,
+         lwd.lines = 2,
+         col.points = "blue",
+         cex = 1.5)
+```
+
+```{r fig4, fig.cap = "Figure 4:  Raw data together with smoothed methylation levels"} 
+# The effect of the smoothing step can be shown with the plotMethfunction
+# rangesClusters[which(seqnames(rangesClusters) == "chr12")]
+region <- GRanges(seqnames = "chr18", ranges = IRanges(start = 60917500, end = 60920000))
+plotMeth(object.raw = rrbs[,16],
+         object.rel = predictedMeth[,16],
+         region = region,
+         lwd.lines = 2,
+         col.points = "blue",
+         cex = 1.5)
+```
+  
+  
+Differential methylation between TG and WT for some CpG sites
+```{r fig5, fig.height = 10, fig.width = 10, fig.cap = "Figure 5:  Smoothed methylation levels (smoothed relative methylation levels for each CpG site within CpG clusters) in TG and WT samples"}
+tg <- predictedMeth[, colData(predictedMeth)$Genotype == "TG"]
+wt <- predictedMeth[, colData(predictedMeth)$Genotype == "WT"]
+mean.tg <- rowMeans(methLevel(tg))
+mean.wt <- rowMeans(methLevel(wt))
+plot(mean.wt, mean.tg, col = color_J20_TG, xlab = "Methylation in WT", ylab = "Methylation in J20 TG")
+```

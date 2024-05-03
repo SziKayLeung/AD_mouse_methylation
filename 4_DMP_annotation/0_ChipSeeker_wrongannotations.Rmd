@@ -1,0 +1,186 @@
+---
+title: "Correction of ChipSeeker Annotations"
+author: "Szi Kay Leung"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load packages
+suppressMessages(library(stringr))
+suppressMessages(library(GenomicRanges)) # GenomicRanges_1.38.0
+suppressMessages(library(dplyr))
+suppressMessages(library(ChIPseeker))
+suppressMessages(library(org.Mm.eg.db))
+suppressMessages(library(TxDb.Mmusculus.UCSC.mm10.knownGene))
+suppressMessages(library(dplyr))
+suppressMessages(library(naniar))
+suppressMessages(library(kableExtra))
+
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+```
+
+- E.Walker annotated DMP (rTg4510) using ChIPseeker. 
+- I.Castanho noticed top-ranked DMP (chr12:115283603) was wrongly annotated to Mir6388 rather than Gm30948.
+- S.Leung to double check through ChIPseeker annotations and correct
+
+```{r input}
+Input_File = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510//DMPsInteractionModel_rTg4510_sig_genotype.csv"
+File = read.csv(Input_File)
+File$location = File$X
+
+# function to annotate peaks
+annotatepeaks <- function(File){
+  
+  
+  #create GRanges object
+  seg <- GRanges(File$location)
+  
+  #add in feature info (promoter etc.) from chipseeker package
+   peakAnno <- annotatePeak(seg,tssRegion = c(-1500, 1500),
+                            TxDb = txdb,
+                            level = "transcript",assignGenomicAnnotation = TRUE,
+                            genomicAnnotationPriority = c("Promoter", "5UTR", "3UTR", "Exon", "Intron","Downstream", "Intergenic"),
+                            annoDb = "org.Mm.eg.db",addFlankGeneInfo = FALSE,flankDistance = 5000,sameStrand = FALSE,ignoreOverlap = FALSE,ignoreUpstream = FALSE,ignoreDownstream = FALSE,overlap = "TSS",verbose = TRUE)
+  
+  #extract more detailed feature info and add to output table
+  peakAnno.df <- as.data.frame(peakAnno)
+  peakAnno.df <- cbind(peakAnno.df, peakAnno@detailGenomicAnnotation)
+  
+  # create a new col for T/F only specified if genic OR within 1500bp window of tss
+  peakAnno.df <- peakAnno.df %>% 
+    mutate(InGeneBodyOr1500bpTSS = if_else(genic == T|(distanceToTSS >= -1500 & distanceToTSS <= 1500), T, F))
+  
+  # create a new col for gene symbol only specified if genic OR within 1500bp window of tss
+  peakAnno.df <- peakAnno.df %>% 
+    mutate(InGeneBodyOr1500bpTSS_SYMBOL = if_else(InGeneBodyOr1500bpTSS == T, SYMBOL, ""))
+  peakAnno.df <- peakAnno.df %>% replace_with_na(replace = list(InGeneBodyOr1500bpTSS_SYMBOL = ""))
+  
+  return(peakAnno.df)
+}
+```
+
+# Annotation using ChIPseeker
+
+The ChIPseeker command to annotate peaks:
+
+    peakAnno <- annotatePeak(seg,tssRegion = c(-1500, 1500), 
+    TxDb = txdb,
+    level = "transcript",
+    assignGenomicAnnotation = TRUE,
+    genomicAnnotationPriority = c("Promoter", "5UTR", "3UTR", "Exon", "Intron","Downstream", "Intergenic"),
+    annoDb = "org.Mm.eg.db",
+    addFlankGeneInfo = TRUE,
+    flankDistance = 5000,
+    sameStrand = FALSE,
+    ignoreOverlap = FALSE,ignoreUpstream = FALSE,ignoreDownstream = FALSE,
+    overlap = "TSS",verbose = TRUE)
+  
+
+Annotating the peaks with the below changes made no difference in annotation:  
+- Changing the `genomicAnnotationPriority`   
+- `ignoreOverlap = TRUE,ignoreUpstream = TRUE,ignoreDownstream = TRUE`
+
+
+## Wrong annotation
+
+All arguments and processing with ChIPseeker appears correct:
+
+```{r, message=FALSE}
+df <- annotatepeaks(File)
+df <- df %>% mutate(positions = paste0(seqnames,":",start)) 
+```
+
+However, the annotations to the `SYMBOL` were wrong. Interestingly, the `annotation` to the transcriptID were correct. 
+
+```{r}
+DT::datatable(df[df$positions == "chr12:115283603",c("positions","annotation","SYMBOL","Exon")], options = list(dom = 't',scroll = TRUE))
+```
+
+<br>
+
+# Use "annotation" column with gtf 
+
+Propose to use the `annotation` column generated from ChIPseeker with the transcriptID and corresponding reference annotation (`gencode.vM22.annotation.gtf `) to correct gene annotations. 
+
+<br>
+
+## Extract transcriptID and geneID 
+
+```{r}
+# Read in reference gtf
+gtf.file = "/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/references/annotation/gencode.vM22.annotation.gtf"
+gtf.gr = rtracklayer::import(gtf.file) # creates a GRanges object
+gtf.df = as.data.frame(gtf.gr)
+
+# extract relevant columns
+genes = unique(gtf.df[ ,c("transcript_id","gene_id","gene_name")])
+
+# remove rows that are "NA" i.e where there is no transcript_ID but there is a gene_ID
+genes = genes[complete.cases(genes), ]
+DT::datatable(head(genes),extensions = 'FixedColumns', options = list(dom = 't'))
+```
+
+# Annotations
+
+## within exonic region 
+
+Extract the transcriptID from the `annotation` column and merge with the reference database. 
+In the table below, `<..>_ref` refers to the annotations from proposed approach, whereas the `<...>_chip` refers to annotations from ChIPseeker.
+
+```{r}
+exon <- df[grepl("Exon",df$annotation),] %>% 
+  mutate(transcriptID_sk  = word(word(word(annotation,c(2), sep = fixed(" ")),c(1),sep = fixed("/")),c(2), sep = fixed("(")))
+
+exon <- merge(exon, genes, by.x = "transcriptID_sk", by.y = "transcript_id")
+
+DT::datatable(exon[exon$positions == "chr12:115283603",c("positions","transcriptID_sk","gene_id","gene_name","transcriptId","SYMBOL")] 
+              %>% `colnames<-`(c("DMP", "transcriptID_ref", "geneID_ref","genename_ref","transcriptID_chip","genename_chip")),
+              extensions = 'FixedColumns', options = list(dom = 't',scrollX = TRUE))
+
+# classifying if genenames from reference database and chipseeker annotation match
+exon <- exon %>% mutate(match = ifelse(gene_name == SYMBOL,"yes","no"))
+
+```
+
+Using the above approach, from `r nrow(exon)` DMP annotated to exonic region, `r nrow(exon[exon$match == "no",])` were annotated to a different gene.  
+In the table below, `<..>_ref` refers to the annotations from proposed approach, whereas the `<...>_chip` refers to annotations from ChIPseeker.
+
+```{r}
+DT::datatable(exon[exon$match == "no",c("positions","annotation","gene_name","SYMBOL")]
+              %>% `colnames<-`(c("DMP", "annotation", "genename_ref","genename_chip")),
+              options = list(scrollX = TRUE))
+```
+
+## within intronic region 
+
+```{r}
+intron <- df[grepl("Intron",df$annotation),] %>% 
+  mutate(transcriptID_sk  = word(word(word(annotation,c(2), sep = fixed(" ")),c(1),sep = fixed("/")),c(2), sep = fixed("(")))
+
+# merge 
+intron <- merge(intron, genes, by.x = "transcriptID_sk", by.y = "transcript_id")
+# classify
+intron <- intron %>% mutate(match = ifelse(gene_name == SYMBOL,"yes","no"))
+```
+
+Using the above approach, from `r nrow(intron)` DMP annotated to exonic region, `r nrow(intron[intron$match == "no",])` were annotated to a different gene.  
+In the table below, `<..>_ref` refers to the annotations from proposed approach, whereas the `<...>_chip` refers to annotations from ChIPseeker.
+
+```{r}
+DT::datatable(intron[intron$match == "no",c("positions","annotation","gene_name","SYMBOL")]
+              %>% `colnames<-`(c("DMP", "annotation", "genename_ref","genename_chip")),
+              options = list(scrollX = TRUE))
+
+```
+
+## Other annotations
+
+Besides annotation to intronic and exonic region, the other classifications are: `r unique(word(df$annotation,c(1),sep = fixed(" ")))`. However, no transcriptID is listed under these annotations.

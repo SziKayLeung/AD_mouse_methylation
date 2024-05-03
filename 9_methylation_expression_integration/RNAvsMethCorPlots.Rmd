@@ -1,0 +1,224 @@
+---
+title: "RNA expression vs Methylation correlation plots"
+author: "Emma Walker"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(stringr)
+library(cowplot)
+
+
+# read in function to make plots
+source("/gpfs/ts0/projects/Research_Project-191406/EmmaW/RNA_expr_comparisons/Function_RNAcorMethPlot3.r")
+
+
+```
+
+N.B. only the top 3 (significant DMPs) genes are shown when there are greater number of overlaps.
+
+### RRBS
+
+
+```{r, warning=F, message=FALSE, echo = F}
+
+# read in data
+
+# set colours for plots
+color_rTg4510_TG <- "#00AEC9"
+color_J20_TG <- "#FF5A62"
+WT <- "#000000"
+
+#### read in RRBS methylation
+
+#rTg4510
+load("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/rTg4510_RRBSbetasComplete.RData")
+rTg4510_RRBS <- RRBS_completebetas
+rm(RRBS_completebetas)
+
+#J20
+load("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/J20_RRBSbetasComplete.RData")
+J20_RRBS <- RRBS_completebetas
+rm(RRBS_completebetas)
+
+
+
+#### load in RNA expr data
+rTg4510_RNA <- read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/RNA-seq/rTg4510_normalized_counts.csv", stringsAsFactors = F)
+J20_RNA <- read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/RNA-seq/J20_normalized_counts.csv", stringsAsFactors = F)
+
+#read in pheno data to get TG/WT groups
+rTg4510_colData <- read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/Tg4510_coldata_RRBS.csv", stringsAsFactors = F)
+J20_colData <- read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/J20_coldata_RRBS.csv", stringsAsFactors = F)
+
+RNAcorMethPlot <- function(res, ModelTerm, RNA, RRBS, colData, colours, gene,  MouseModel){
+  
+  # res is significant DMP results file from regression
+  # RNA is normalised counts for the mouse model
+  # RRBS is RRBS methyaltion matrix for the mouse model
+  # colData is pheno data for the mouse model
+  # colours is the colours for TG/WT
+  # gene_number refers to signficance level. e.g. 1 is top most significant, 2 is 2nd most significant etc N.B only includes sites annotated to a          gene also in the RNA data
+  
+  library(dplyr)
+  library(reshape2)
+  library(ggplot2)
+  
+  colnames(RNA)[1] <- "Gene" 
+  
+  pvalcol <- paste0("FDR_adj_", ModelTerm)
+  
+  
+  #susbet DMP results to those in gene of interest
+  res <- res[order(res[, pvalcol]),]# order results file by pval
+  res_sub <- res[which(res$ChIPseeker_GeneSymbol == gene),] #remove rows where DMPs weren't annotated to a gene in the RNA data
+  #res_sub <- res[which(res$ChIPseeker_GeneSymbol == unique(res$Genes_3000bp_TSS)[gene_number]),] # subset to sites annotated to gene_number
+  
+  #Subset RRBS data to sites in res_sub
+  RRBS_sub <- RRBS[rownames(RRBS) %in% res_sub$Position,]
+  RRBS_sub <- as.data.frame(t(RRBS_sub))
+  RRBS_sub$Sample_ID <- rownames(RRBS_sub)
+  
+  # subset RNA data to gene in res_sub
+  RNA_sub <- RNA[which(RNA$Gene == gene),]
+  RNA_sub <- as.data.frame(t(RNA_sub))
+  colnames(RNA_sub) <- "RNAexpr"
+  RNA_sub$Sample_ID <- rownames(RNA_sub)
+  RNA_sub <- RNA_sub[-c(1),]
+  RNA_sub$Sample_ID <- rownames(RNA_sub)
+  RNA_sub$RNAexpr <- as.numeric(as.character(RNA_sub$RNAexpr))
+  
+  
+  ########################## plot ====================
+  
+  # create dataframe containing all data for plot
+  plotdf <- left_join(colData %>% dplyr::select(Sample_ID, Genotype), RNA_sub) %>%
+    left_join(., RRBS_sub)
+  plotdf <- melt(plotdf, id.vars = c("Sample_ID", "Genotype", "RNAexpr"))
+  colnames(plotdf)[5] <- "Methylation"
+  plotdf <- plotdf[complete.cases(plotdf),]
+  
+  
+  # create plot
+  p <- ggplot(plotdf, aes(x = Methylation, y = RNAexpr))+
+    geom_point(aes(color = Genotype)) +
+    geom_smooth(method=lm, aes(color=Genotype))+
+    geom_smooth(method=lm, se=FALSE, fullrange=FALSE, linetype = "dashed")+
+    scale_color_manual(values=colours)+
+    labs(x = "Methylation", y = "RNA-Seq normalized counts") +
+    ggtitle(paste0(MouseModel, " ", ModelTerm, " - Gene: ", gene))
+  
+  return(p)
+  
+}
+
+```
+
+# rTg4510 Genotype
+
+```{r, warning=F, message=FALSE, echo = F}
+
+# read in results file of signficant DMPs
+
+#res <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/Annotated/rTg4510/DMPs/With_3000bpTSS_Annotations/DMPsInteractionModel_rTg4510_sig_genotype_3000tssAnno.csv", stringsAsFactors = F)
+res <- read.csv("/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/Figures/rTg4510_rrbs_genotype.csv")
+#length(unique(res$Genes_3000bp_TSS)) # 279
+
+#load RNA rTg4510 sig results and get unique genes
+RNAres <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/RNA_expr_comparisons/TableS2_rTg4510_genotype.csv", stringsAsFactors = F)
+
+#find which genes are sig in both RNA and methylation data
+inBoth <- intersect(res$ChIPseeker_GeneSymbol, RNAres$Gene)
+
+rTg4510Genotype <- list()
+for(i in 1:length(inBoth)){
+  gene = inBoth[i]
+  rTg4510Genotype[[i]] <- RNAcorMethPlot(res = res, ModelTerm = "genotype", RNA = rTg4510_RNA, 
+                      RRBS = rTg4510_RRBS, colData = rTg4510_colData, colours = c(color_rTg4510_TG, WT), gene = gene, MouseModel = "rTg4510")
+}
+
+pdf("/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/Figures/corr_expression_methylation.pdf",width=20,height=15)
+plot_grid(plotlist = rTg4510Genotype)
+dev.off()
+
+res <- res %>% mutate(ucsc = paste0(word(Position,c(1),sep=fixed(":"))," ",word(Position,c(2),sep=fixed(":")), " ", word(Position,c(2),sep=fixed(":"))))
+res[res$ChIPseeker_GeneSymbol %in% inBoth,"ucsc"]
+write.csv(res[res$ChIPseeker_GeneSymbol %in% inBoth,"ucsc"],
+          "/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/Figures/rTg4510_integration_probes.csv",
+          row.names = F, quote = F, col.names = F)
+```
+
+# rTg4510 interaction
+
+
+```{r, warning=F, message=FALSE, echo = F}
+
+# read in results file of signficant DMPs
+
+res <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/Annotated/rTg4510/DMPs/With_3000bpTSS_Annotations/DMPsInteractionModel_rTg4510_sig_interaction_3000tssAnno.csv", stringsAsFactors = F)
+#length(unique(res$Genes_3000bp_TSS)) # 300
+
+RNAres <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/RNA_expr_comparisons/TableS4_rTg4510_interaction.csv", stringsAsFactors = F)
+
+#find which genes are sig in both RNA and methylation data
+inBoth <- intersect(res$Genes_3000bp_TSS, RNAres$Gene)
+
+if(length(inBoth) > 3){
+  
+for(i in 1:3){
+  print(RNAcorMethPlot(res = res, ModelTerm = "interaction", RNA = rTg4510_RNA, RRBS = rTg4510_RRBS, colData = rTg4510_colData, colours = c(color_rTg4510_TG, WT), gene_number = i, MouseModel = "rTg4510"))
+  }
+} else {
+    for(i in 1:length(inBoth)){
+  print(RNAcorMethPlot(res = res, ModelTerm = "interaction", RNA = rTg4510_RNA, RRBS = rTg4510_RRBS, colData = rTg4510_colData, colours = c(color_rTg4510_TG, WT), gene_number = i, MouseModel = "rTg4510"))
+  }
+}
+
+
+```
+
+
+
+# rTg4510 pathology
+
+```{r, warning=F, message=FALSE, echo = F}
+
+# read in results file of signficant DMPs
+
+res <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/Annotated/rTg4510/DMPs/With_3000bpTSS_Annotations/DMPsPathology_rTg4510_sig_pathology_3000tssAnno.csv", stringsAsFactors = F)
+#length(unique(res$Genes_3000bp_TSS)) # 1061
+
+RNAres <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/RNA_expr_comparisons/TableS5_rTg4510_ECX_pathology.csv", stringsAsFactors = F)
+colnames(RNAres)[1] <- "Gene"
+
+
+#find which genes are sig in both RNA and methylation data
+inBoth <- intersect(res$Genes_3000bp_TSS, RNAres$Gene)
+
+if(length(inBoth) > 3){
+  
+for(i in 1:3){
+  print(RNAcorMethPlot(res = res, ModelTerm = "pathology", RNA = rTg4510_RNA, RRBS = rTg4510_RRBS, colData = rTg4510_colData, colours = c(color_rTg4510_TG, WT), gene_number = i, MouseModel = "rTg4510"))
+  }
+} else {
+    for(i in 1:length(inBoth)){
+  print(RNAcorMethPlot(res = res, ModelTerm = "pathology", RNA = rTg4510_RNA, RRBS = rTg4510_RRBS, colData = rTg4510_colData, colours = c(color_rTg4510_TG, WT), gene_number = i, MouseModel = "rTg4510"))
+  }
+}
+
+
+```
+
+
+
+
+

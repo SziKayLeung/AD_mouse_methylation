@@ -1,0 +1,953 @@
+---
+title: "DNAmAge Clocks"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Clocks
+
+Horvath has sent generated many clocks, for this project relevant clocks begin with prefix 'DNAmAgeClock'. These are:
+
+* DNAmAgeClockCortex
+* DNAmAgeClockBrain
+* DNAmAgeClockPan
+* DNAmAgeClockLiver
+* DNAmAgeClockBlood
+* DNAmAgeClockHeart
+
+
+```{r, warning=FALSE, message=F}
+library(tidyr)
+library(dplyr)
+library(lme4)
+library(nlme)
+library(mltools)
+
+library(kableExtra)
+library(ggplot2)
+library(gridExtra)
+
+## read data in
+load("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Normalised_Data_Sesame.rdat") #load this in to have passed QC samples only as samplesheet has failed samples
+pheno <- QCmetrics[which(QCmetrics$Tissue %in% c("CortexEntorhinalis", "Hippocampus")),] #take tissue samples further
+
+
+samplesheet <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/Clocks/OutputMouseClocks.csv", header = T,stringsAsFactors = F)
+samplesheet <- samplesheet[,c(1:50)] #filter unnecessary values
+samplesheet <- samplesheet[which(samplesheet$Basename %in% pheno$Basename),] #filter to just tissue samples to join with pathology data
+samplesheet$SampleID <- gsub(".*_", "",samplesheet$ExternalSampleID)
+## Add pathology data in
+J20_pathdata <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/J20_coldata_VertebrateArray.csv", header = T, stringsAsFactors = F)
+rTg4510_pathdata <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Tg4510_coldata_VertebrateArray.csv", header = T, stringsAsFactors = F)
+
+#Pathology knows which samples are paired so add the column for it now
+for(i in 1:nrow(J20_pathdata)){
+  J20_pathdata[i, "MouseID"] <- paste("J20_M", i, sep="")
+}
+
+for(i in 1:nrow(rTg4510_pathdata)){
+  rTg4510_pathdata[i, "MouseID"] <- paste("rTg4510_M", i, sep="")
+}
+
+#split the tissue and model into sep data
+J20_ecx <- J20_pathdata[,c("Sample_ID_ECX","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology_ECX", "MouseID" )]
+colnames(J20_ecx) <- c("SampleID","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology", "MouseID")
+J20_hip <- J20_pathdata[,c("Sample_ID_HIP","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology_HIP", "MouseID")]
+colnames(J20_hip) <- c("SampleID","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology", "MouseID")
+
+rTg4510_ecx <- rTg4510_pathdata[,c("Sample_ID_ECX","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology_ECX", "MouseID")]
+colnames(rTg4510_ecx) <- c("SampleID","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology", "MouseID")
+rTg4510_hip <- rTg4510_pathdata[,c("Sample_ID_HIP","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology_HIP", "MouseID")]
+colnames(rTg4510_hip) <- c("SampleID","Mouse_ID","Genotype","Age_months","Group_ID","Histology_no","Pathology", "MouseID")
+
+pathology <- rbind(J20_ecx, J20_hip, rTg4510_ecx, rTg4510_hip)
+samplesheet <- merge(samplesheet, pathology, by = "SampleID")
+samplesheet <- samplesheet[,-53]
+colnames(samplesheet)[colnames(samplesheet) == 'Genotype.x'] <- 'Genotype'
+
+samplesheet <- separate(data = samplesheet, col = Basename, 
+                        into = c("Chip", "Chip_Position"), sep="_")
+samplesheet$Genotype <- factor(samplesheet$Genotype, levels = c("WT","TG"))
+```
+
+
+```{r functions, warning=F, message=F}
+############### Functions for plots as it is repetitive and keep mislabelling 
+
+
+
+#Plots for WT samples
+plotWTSamples <- function(dat, clocks, tissue, model){
+  dat2 <- dat[which(dat$Genotype == "WT"),]
+  par(mfrow = c(2,3))
+  for(clock in clocks){
+    corr <- cor(dat2$Age, dat2[, clock])
+    err <- rmse(preds = dat2[, clock], actuals = dat2$Age)
+    plot(dat2$Age, dat2[, clock], col = dat2$GenotypeCol,
+         xlab = "Age", ylab = as.character(clock),
+         main = paste(paste(model, tissue, sep = " "), clock, sep = " - "))
+    mtext(paste("cor = ", signif(corr,3)), side = 3, adj = 1)
+    mtext(paste("rmse = ", signif(err,3)), side = 3, adj = 0)
+    abline(0,1)
+  }
+}
+
+#Plots for TGs and WTs samples
+plotSamples <- function(dat, clocks, tissue, model){
+  par(mfrow = c(2,3))
+  for(clock in clocks){
+    corr <- cor(dat$Age, dat[, clock])
+    err <- rmse(preds = dat[, clock], actuals = dat$Age)
+    plot(dat$Age, dat[, clock], col = dat$GenotypeCol,
+         xlab = "Age", ylab = as.character(clock),
+         main = paste(paste(model, tissue, sep = " "), clock, sep = " - "))
+    mtext(paste("cor = ", signif(corr,3)), side = 3, adj = 1)
+    mtext(paste("rmse = ", signif(err,3)), side = 3, adj = 0)
+    abline(0,1)
+  }
+}
+```
+
+
+## Models
+
+Firstly, we will run two seperate models for predictors Genotype and Pathology. We can see below that the Cortex Clock works correlates best with WT and therefore will use the Cortex clock for both Entorhinalis Cortex and Hippocampus brain region.  The models are:
+
+$${DNAmAgeClockCortex } =  {Genotype}$$
+$${DNAmAgeClockCortex } =  {Pathology}$$
+
+```{r, warning = F, message=F}
+#create a results table
+res <- matrix(NA, nrow = 8, ncol= 4)
+colnames(res) <- c("rTg4510_ECX", "rTg4510_HIP", "J20_ECX", "J20_HIP")
+rownames(res) <- c("Genotype.Intercept", "Genotype.Beta", "Genotype.SE", "Genotype.P",
+                   "Pathology.Intercept","Pathology.Beta", "Pathology.SE", "Pathology.P")
+```
+
+
+### ECX rTg4510
+
+
+```{r ECX rTg4510, warning=F, message=F,fig.height=7, fig.width=10}
+########################################### filter for ecx rTg4510
+Tissue <- "CortexEntorhinalis" 
+Model  <- "rTg4510"
+TG_colour <- "#00AEC9"
+
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain" , 
+            "DNAmAgeClockPan","DNAmAgeClockLiver",
+            "DNAmAgeClockBlood","DNAmAgeClockHeart")
+
+## WT samples only
+plotWTSamples(dat, clocks, tissue = "ECX", model = "rTg4510")
+
+## all samples WT and TGs
+plotSamples(dat, clocks, tissue = "ECX", model = "rTg4510")
+
+
+
+## DNAmAge and terms
+par(mfrow = c(1,3))
+plot(dat$Genotype, dat$DNAmAgeClockCortex,
+     xlab = "Genotype", ylab = "DNAmAgeClockCortex")
+points(dat$Genotype, dat$DNAmAgeClockCortex, col = dat$GenotypeCol)
+
+ages <- sort(unique(dat$Age_months))
+means_WT <- c()
+means_TG <- c()
+for (age in unique(dat$Age_months)) {
+  means_WT <- c(means_WT, mean(dat[which(dat$Age_months==age & dat$Genotype=="WT"),"DNAmAgeClockCortex"]))
+  means_TG <- c(means_TG, mean(dat[which(dat$Age_months==age & dat$Genotype=="TG"),"DNAmAgeClockCortex"]))
+}
+plot(dat$Age_months, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Age months", ylab = "DNAmAgeClockCortex")
+lines(ages, means_WT, lty=2, col="black")
+lines(ages, means_TG, lty=2, col=TG_colour)
+
+plot(dat$Pathology, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Pathology", ylab = "DNAmAgeClockCortex")
+abline(lm(DNAmAgeClockCortex ~  Pathology, data=dat))
+
+## Now run the linear models
+lmmodel <- lm(DNAmAgeClockCortex ~  Genotype, data=dat)
+summary(lmmodel)$coef
+res[1,1] <- summary(lmmodel)$coef["(Intercept)",1]
+res[2,1] <- summary(lmmodel)$coef["GenotypeTG",1]
+res[3,1] <- summary(lmmodel)$coef["GenotypeTG",2]
+res[4,1] <- summary(lmmodel)$coef["GenotypeTG",4]
+
+lmmodel <- lm(DNAmAgeClockCortex ~  Pathology, data=dat)
+summary(lmmodel)$coef
+res[5,1] <- summary(lmmodel)$coef["(Intercept)",1]
+res[6,1] <- summary(lmmodel)$coef["Pathology",1]
+res[7,1] <- summary(lmmodel)$coef["Pathology",2]
+res[8,1] <- summary(lmmodel)$coef["Pathology",4]
+```
+
+### HIP rTg4510
+
+```{r HIP rTg4510, warning=F, message=F, fig.height=7, fig.width=10}
+############################################ filter for hip rTg4510
+Tissue <- "Hippocampus" 
+Model  <- "rTg4510"
+TG_colour <- "#00AEC9"
+
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain" , 
+            "DNAmAgeClockPan","DNAmAgeClockLiver",
+            "DNAmAgeClockBlood","DNAmAgeClockHeart")
+
+## WT samples only
+plotWTSamples(dat, clocks, tissue = "HIP", model = "rTg4510")
+
+## all samples WT and TGs
+plotSamples(dat, clocks, tissue = "HIP", model = "rTg4510")
+
+
+## DNAmAge and terms
+par(mfrow = c(1,3))
+plot(dat$Genotype, dat$DNAmAgeClockCortex,
+     xlab = "Genotype", ylab = "DNAmAgeClockCortex")
+points(dat$Genotype, dat$DNAmAgeClockCortex, col = dat$GenotypeCol)
+
+ages <- sort(unique(dat$Age_months))
+means_WT <- c()
+means_TG <- c()
+for (age in unique(dat$Age_months)) {
+  means_WT <- c(means_WT, mean(dat[which(dat$Age_months==age & dat$Genotype=="WT"),"DNAmAgeClockCortex"]))
+  means_TG <- c(means_TG, mean(dat[which(dat$Age_months==age & dat$Genotype=="TG"),"DNAmAgeClockCortex"]))
+}
+plot(dat$Age_months, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Age months", ylab = "DNAmAgeClockCortex")
+lines(ages, means_WT, lty=2, col="black")
+lines(ages, means_TG, lty=2, col=TG_colour)
+
+plot(dat$Pathology, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Pathology", ylab = "DNAmAgeClockCortex")
+abline(lm(DNAmAgeClockCortex ~  Pathology, data=dat))
+
+## Now run the linear models
+lmmodel <- lm(DNAmAgeClockCortex ~  Genotype , data=dat)
+summary(lmmodel)$coef
+res[1,2] <- summary(lmmodel)$coef["(Intercept)",1]
+res[2,2] <- summary(lmmodel)$coef["GenotypeTG",1]
+res[3,2] <- summary(lmmodel)$coef["GenotypeTG",2]
+res[4,2] <- summary(lmmodel)$coef["GenotypeTG",4]
+
+lmmodel <- lm(DNAmAgeClockCortex ~  Pathology, data=dat)
+summary(lmmodel)$coef
+res[5,2] <- summary(lmmodel)$coef["(Intercept)",1]
+res[6,2] <- summary(lmmodel)$coef["Pathology",1]
+res[7,2] <- summary(lmmodel)$coef["Pathology",2]
+res[8,2] <- summary(lmmodel)$coef["Pathology",4]
+```
+
+
+### ECX J20
+
+```{r ECX J20, warning=F, message=F, fig.height=7, fig.width=10}
+############################################ filter for ecx J20
+Tissue <- "CortexEntorhinalis" 
+Model  <- "J20"
+TG_colour <- "#FF5A62"
+
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain" , 
+            "DNAmAgeClockPan","DNAmAgeClockLiver",
+            "DNAmAgeClockBlood","DNAmAgeClockHeart")
+## WT samples only
+plotWTSamples(dat, clocks, tissue = "ECX", model = "J20")
+
+## all samples WT and TGs
+plotSamples(dat, clocks, tissue = "ECX", model = "J20")
+
+## DNAmAge and terms
+par(mfrow = c(1,3))
+plot(dat$Genotype, dat$DNAmAgeClockCortex,
+     xlab = "Genotype", ylab = "DNAmAgeClockCortex")
+points(dat$Genotype, dat$DNAmAgeClockCortex, col = dat$GenotypeCol)
+
+ages <- sort(unique(dat$Age_months))
+means_WT <- c()
+means_TG <- c()
+for (age in unique(dat$Age_months)) {
+  means_WT <- c(means_WT, mean(dat[which(dat$Age_months==age & dat$Genotype=="WT"),"DNAmAgeClockCortex"]))
+  means_TG <- c(means_TG, mean(dat[which(dat$Age_months==age & dat$Genotype=="TG"),"DNAmAgeClockCortex"]))
+}
+plot(dat$Age_months, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Age months", ylab = "DNAmAgeClockCortex")
+lines(ages, means_WT, lty=2, col="black")
+lines(ages, means_TG, lty=2, col=TG_colour)
+
+plot(dat$Pathology, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Pathology", ylab = "DNAmAgeClockCortex")
+abline(lm(DNAmAgeClockCortex ~  Pathology, data=dat))
+
+
+## Now run the linear models
+lmmodel <- lm(DNAmAgeClockCortex ~  Genotype, data=dat)
+summary(lmmodel)$coef
+res[1,3] <- summary(lmmodel)$coef["(Intercept)",1]
+res[2,3] <- summary(lmmodel)$coef["GenotypeTG",1]
+res[3,3] <- summary(lmmodel)$coef["GenotypeTG",2]
+res[4,3] <- summary(lmmodel)$coef["GenotypeTG",4]
+
+
+lmmodel <- lm(DNAmAgeClockCortex ~  Pathology, data=dat)
+summary(lmmodel)$coef
+res[5,3] <- summary(lmmodel)$coef["(Intercept)",1]
+res[6,3] <- summary(lmmodel)$coef["Pathology",1]
+res[7,3] <- summary(lmmodel)$coef["Pathology",2]
+res[8,3] <- summary(lmmodel)$coef["Pathology",4]
+```
+
+
+### HIP J20
+
+```{r HIP J20, warning=F, message=F, fig.height=7, fig.width=10}
+############################################ filter for hip J20
+Tissue <- "Hippocampus" 
+Model  <- "J20"
+TG_colour <- "#FF5A62"
+
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain" , 
+            "DNAmAgeClockPan","DNAmAgeClockLiver",
+            "DNAmAgeClockBlood","DNAmAgeClockHeart")
+
+## WT samples only
+plotWTSamples(dat, clocks, tissue = "HIP", model = "J20")
+
+## all samples WT and TGs
+plotSamples(dat, clocks, tissue = "HIP", model = "J20")
+
+## DNAmAge and terms
+par(mfrow = c(1,3))
+plot(dat$Genotype, dat$DNAmAgeClockCortex,
+     xlab = "Genotype", ylab = "DNAmAgeClockCortex")
+points(dat$Genotype, dat$DNAmAgeClockCortex, col = dat$GenotypeCol)
+
+ages <- sort(unique(dat$Age_months))
+means_WT <- c()
+means_TG <- c()
+for (age in unique(dat$Age_months)) {
+  means_WT <- c(means_WT, mean(dat[which(dat$Age_months==age & dat$Genotype=="WT"),"DNAmAgeClockCortex"]))
+  means_TG <- c(means_TG, mean(dat[which(dat$Age_months==age & dat$Genotype=="TG"),"DNAmAgeClockCortex"]))
+}
+plot(dat$Age_months, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Age months", ylab = "DNAmAgeClockCortex")
+lines(ages, means_WT, lty=2, col="black")
+lines(ages, means_TG, lty=2, col=TG_colour)
+
+plot(dat$Pathology, dat$DNAmAgeClockCortex, col = dat$GenotypeCol, 
+     xlab = "Pathology", ylab = "DNAmAgeClockCortex")
+abline(lm(DNAmAgeClockCortex ~  Pathology, data=dat))
+
+
+## Now run the linear models
+lmmodel <- lm(DNAmAgeClockCortex ~  Genotype, data=dat)
+summary(lmmodel)$coef
+res[1,4] <- summary(lmmodel)$coef["(Intercept)",1]
+res[2,4] <- summary(lmmodel)$coef["GenotypeTG",1]
+res[3,4] <- summary(lmmodel)$coef["GenotypeTG",2]
+res[4,4] <- summary(lmmodel)$coef["GenotypeTG",4]
+
+
+lmmodel <- lm(DNAmAgeClockCortex ~  Pathology, data=dat)
+summary(lmmodel)$coef
+res[5,4] <- summary(lmmodel)$coef["(Intercept)",1]
+res[6,4] <- summary(lmmodel)$coef["Pathology",1]
+res[7,4] <- summary(lmmodel)$coef["Pathology",2]
+res[8,4] <- summary(lmmodel)$coef["Pathology",4]
+
+
+```
+
+
+```{r results genotype, warning=F, message=F}
+resGenotype <- res[1:4,]
+kable(resGenotype) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+write.csv(resGenotype, "DNAmAgeClockCortex_Genotype_results.csv")
+
+
+```
+
+```{r results pathology, warning=F, message=F}
+resPathology <- res[5:8,]
+
+kable(resPathology) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "200px")
+
+write.csv(resPathology, "DNAmAgeClockCortex_Pathology_results.csv")
+```
+
+
+
+## Full Models
+
+### Genotype*Age
+
+$${DNAmAgeClockCortex } =  {Genotype + Age + Genotype*Age}$$
+
+
+
+```{r model1, warning=F, message=F}
+################ DNAmAge ~ Genotype + Age + Genotype*Age,
+
+#create a results table
+res <- matrix(NA, nrow = 10, ncol= 4)
+colnames(res) <- c("rTg4510_ECX", "rTg4510_HIP", "J20_ECX", "J20_HIP")
+rownames(res) <- c("Intercept", "GenotypeTG.Beta", "GenotypeTG.SE", "GenotypeTG.P",
+                   "Age.Beta","Age.SE", "Age.P",
+                   "GenotypeTG.Age.Beta","GenotypeTG.Age.SE", "GenotypeTG.Age.P")
+
+#rTg4510 ECX 
+Tissue <- "CortexEntorhinalis" 
+Model  <- "rTg4510"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Genotype*Age, data=dat)
+
+res[1,1] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,1] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,1] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,1] <- summary(lmodel)$coef["GenotypeTG",4]
+
+
+res[5,1] <- summary(lmodel)$coef["Age",1]
+res[6,1] <- summary(lmodel)$coef["Age",2]
+res[7,1] <- summary(lmodel)$coef["Age",4]
+
+
+res[8,1] <- summary(lmodel)$coef["GenotypeTG:Age",1]
+res[9,1] <- summary(lmodel)$coef["GenotypeTG:Age",2]
+res[10,1] <- summary(lmodel)$coef["GenotypeTG:Age",4]
+
+#rTg4510 HIP
+Tissue <- "Hippocampus" 
+Model  <- "rTg4510"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Genotype*Age, data=dat)
+
+res[1,2] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,2] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,2] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,2] <- summary(lmodel)$coef["GenotypeTG",4]
+
+res[5,2] <- summary(lmodel)$coef["Age",1]
+res[6,2] <- summary(lmodel)$coef["Age",2]
+res[7,2] <- summary(lmodel)$coef["Age",4]
+
+res[8,2] <- summary(lmodel)$coef["GenotypeTG:Age",1]
+res[9,2] <- summary(lmodel)$coef["GenotypeTG:Age",2]
+res[10,2] <- summary(lmodel)$coef["GenotypeTG:Age",4]
+
+#J20 ECX
+Tissue <- "CortexEntorhinalis" 
+Model  <- "J20"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Genotype*Age, data=dat)
+
+res[1,3] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,3] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,3] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,3] <- summary(lmodel)$coef["GenotypeTG",4]
+
+res[5,3] <- summary(lmodel)$coef["Age",1]
+res[6,3] <- summary(lmodel)$coef["Age",2]
+res[7,3] <- summary(lmodel)$coef["Age",4]
+
+res[8,3] <- summary(lmodel)$coef["GenotypeTG:Age",1]
+res[9,3] <- summary(lmodel)$coef["GenotypeTG:Age",2]
+res[10,3] <- summary(lmodel)$coef["GenotypeTG:Age",4]
+
+
+#J20 HIP
+Tissue <- "Hippocampus" 
+Model  <- "J20"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Genotype*Age, data=dat)
+
+res[1,4] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,4] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,4] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,4] <- summary(lmodel)$coef["GenotypeTG",4]
+
+res[5,4] <- summary(lmodel)$coef["Age",1]
+res[6,4] <- summary(lmodel)$coef["Age",2]
+res[7,4] <- summary(lmodel)$coef["Age",4]
+
+res[8,4] <- summary(lmodel)$coef["GenotypeTG:Age",1]
+res[9,4] <- summary(lmodel)$coef["GenotypeTG:Age",2]
+res[10,4] <- summary(lmodel)$coef["GenotypeTG:Age",4]
+
+```
+
+```{r results model1, warning=F, message=F}
+write.csv(res, "DNAmAgeClockCortex_GenotypeAgeInteraction_results.csv")
+
+kable(res) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "500px")
+```
+
+
+
+
+### Pathology
+
+$${DNAmAgeClockCortex } =  {Genotype + Age + Pathology}$$
+
+
+
+```{r model2, warning=F, message=F}
+################ DNAmAge ~ Genotype + Age + Genotype*Age,
+#create a results table
+res <- matrix(NA, nrow = 10, ncol= 4)
+colnames(res) <- c("rTg4510_ECX", "rTg4510_HIP", "J20_ECX", "J20_HIP")
+rownames(res) <- c("Intercept", "GenotypeTG.Beta", "GenotypeTG.SE", "GenotypeTG.P",
+                   "Age.Beta","Age.SE", "Age.P",
+                   "Pathology.Beta","Pathology.SE", "Pathology.P")
+
+#rTg4510 ECX 
+Tissue <- "CortexEntorhinalis" 
+Model  <- "rTg4510"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Pathology, data=dat)
+
+res[1,1] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,1] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,1] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,1] <- summary(lmodel)$coef["GenotypeTG",4]
+
+
+res[5,1] <- summary(lmodel)$coef["Age",1]
+res[6,1] <- summary(lmodel)$coef["Age",2]
+res[7,1] <- summary(lmodel)$coef["Age",4]
+
+
+res[8,1] <- summary(lmodel)$coef["Pathology",1]
+res[9,1] <- summary(lmodel)$coef["Pathology",2]
+res[10,1] <- summary(lmodel)$coef["Pathology",4]
+
+#rTg4510 HIP
+Tissue <- "Hippocampus" 
+Model  <- "rTg4510"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Pathology, data=dat)
+
+res[1,2] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,2] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,2] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,2] <- summary(lmodel)$coef["GenotypeTG",4]
+
+res[5,2] <- summary(lmodel)$coef["Age",1]
+res[6,2] <- summary(lmodel)$coef["Age",2]
+res[7,2] <- summary(lmodel)$coef["Age",4]
+
+res[8,2] <- summary(lmodel)$coef["Pathology",1]
+res[9,2] <- summary(lmodel)$coef["Pathology",2]
+res[10,2] <- summary(lmodel)$coef["Pathology",4]
+
+#J20 ECX
+Tissue <- "CortexEntorhinalis" 
+Model  <- "J20"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Pathology, data=dat)
+
+res[1,3] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,3] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,3] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,3] <- summary(lmodel)$coef["GenotypeTG",4]
+
+res[5,3] <- summary(lmodel)$coef["Age",1]
+res[6,3] <- summary(lmodel)$coef["Age",2]
+res[7,3] <- summary(lmodel)$coef["Age",4]
+
+res[8,3] <- summary(lmodel)$coef["Pathology",1]
+res[9,3] <- summary(lmodel)$coef["Pathology",2]
+res[10,3] <- summary(lmodel)$coef["Pathology",4]
+
+
+#J20 HIP
+Tissue <- "Hippocampus" 
+Model  <- "J20"
+dat <- samplesheet[which(samplesheet$Tissue == Tissue & samplesheet$AD_model == Model),]
+
+lmodel <- lm(DNAmAgeClockCortex ~ Genotype + Age + Pathology, data=dat)
+
+res[1,4] <- summary(lmodel)$coef["(Intercept)",1]
+res[2,4] <- summary(lmodel)$coef["GenotypeTG",1]
+res[3,4] <- summary(lmodel)$coef["GenotypeTG",2]
+res[4,4] <- summary(lmodel)$coef["GenotypeTG",4]
+
+res[5,4] <- summary(lmodel)$coef["Age",1]
+res[6,4] <- summary(lmodel)$coef["Age",2]
+res[7,4] <- summary(lmodel)$coef["Age",4]
+
+res[8,4] <- summary(lmodel)$coef["Pathology",1]
+res[9,4] <- summary(lmodel)$coef["Pathology",2]
+res[10,4] <- summary(lmodel)$coef["Pathology",4]
+
+
+```
+
+```{r results model2, warning=F, message=F}
+write.csv(res, "DNAmAgeClockCortex_GenotypeAgePathology_results.csv")
+
+kable(res) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "500px")
+```
+
+
+## Mixed Models
+
+### By tissue
+
+As the same mice can have both brain regions, it would increase power to combine the tissues together within AD models. 
+
+$${DNAmAgeClockCortex } =  {Genotype + Age + Genotype*Age + Tissue}$$
+
+Genotype*Age interaction is signifcant for DNAmAge for rTg4510 only. 
+```{r, warning=F, message=F, fig.height=7, fig.width=10}
+print("rTg4510")
+
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain")
+
+
+Model <- "rTg4510" 
+TG_colour <-"#00AEC9"
+
+dat <- samplesheet[which(samplesheet$AD_model == Model),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+dat$TissueCol <- ifelse(dat$Tissue == "CortexEntorhinalis", 1, 2)
+## WT samples only
+# plotWTSamples(dat, clocks, tissue = "", model = "rTg4510")
+
+## all samples WT and TGs
+model = "rTg4510"
+tissue = ""
+par(mfrow = c(1,2))
+for(clock in clocks){
+  corr <- cor(dat$Age, dat[, clock])
+  err <- rmse(preds = dat[, clock], actuals = dat$Age)
+  plot(dat$Age, dat[, clock], col = dat$GenotypeCol, pch = dat$TissueCol ,
+       xlab = "Age", ylab = as.character(clock),
+       main = paste(paste(model, tissue, sep = " "), clock, sep = " - "))
+  mtext(paste("cor = ", signif(corr,3)), side = 3, adj = 1)
+  mtext(paste("rmse = ", signif(err,3)), side = 3, adj = 0)
+  abline(0,1)
+  legend("topleft", legend=c("WT ECX", "TG ECX", "WT HIP", "TG HIP"),
+       col=c("black","#FF5A62", "black","#FF5A62"), 
+       pch = c(1,1,2,2), 
+       lty=1:2, cex=0.8)
+}
+
+```
+
+```{r, warning=F, message=F}
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age + Genotype*Age + Tissue, data=samplesheet, subset=AD_model=="rTg4510", random= ~1|MouseID))$tTable) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+```{r, warning=F, message=F, fig.height=7, fig.width=10}
+print("J20")
+
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain")
+
+
+Model <- "J20" 
+TG_colour <-"#FF5A62"
+
+dat <- samplesheet[which(samplesheet$AD_model == Model),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+dat$TissueCol <- ifelse(dat$Tissue == "CortexEntorhinalis", 1, 2)
+## WT samples only
+# plotWTSamples(dat, clocks, tissue = "", model = "J20")
+
+## all samples WT and TGs
+model = "J20"
+tissue = ""
+par(mfrow = c(1,2))
+for(clock in clocks){
+  corr <- cor(dat$Age, dat[, clock])
+  err <- rmse(preds = dat[, clock], actuals = dat$Age)
+  plot(dat$Age, dat[, clock], col = dat$GenotypeCol, pch = dat$TissueCol ,
+       xlab = "Age", ylab = as.character(clock),
+       main = paste(paste(model, tissue, sep = " "), clock, sep = " - "))
+  mtext(paste("cor = ", signif(corr,3)), side = 3, adj = 1)
+  mtext(paste("rmse = ", signif(err,3)), side = 3, adj = 0)
+  abline(0,1)
+  legend("topleft", legend=c("WT ECX", "TG ECX", "WT HIP", "TG HIP"),
+       col=c("black","#FF5A62", "black","#FF5A62"), 
+       pch = c(1,1,2,2), 
+       lty=1:2, cex=0.8)
+}
+
+
+```
+
+```{r, warning=F, message=F} 
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age + Genotype*Age + Tissue, data=samplesheet, subset=AD_model=="J20", random= ~1|MouseID))$tTable) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+
+$${DNAmAgeClockCortex } =  {Genotype + Age + Pathology + Tissue}$$
+Pathology is signifcant for DNAmAge for J20 only. rTg4510 is not - which is different to when only pathology was in the model. 
+```{r, warning=F, message=F}
+print("rTg4510")
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age + Pathology + Tissue, na.action=na.omit, data=samplesheet, subset=AD_model=="rTg4510", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+```{r, warning=F, message=F}
+print("J20")
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age + Pathology + Tissue, na.action=na.omit, data=samplesheet, subset=AD_model=="J20", random= ~1|MouseID))$tTable) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+
+
+The other way to combine the two datasets is to pool together AD models as the biggest difference is tissue differences. Furthermore, the clocks are tissue dependents and genotype for WT and TG will also be different regardless of pathology. Combining the models will also provide a larger age range. 
+
+### By model 
+
+$${DNAmAgeClockCortex } =  {Genotype + Age + Genotype*Age + AD model }$$
+
+$${DNAmAgeClockCortex } =  {Genotype + Age + Pathology + AD model }$$
+
+
+Entorhinal Cortex
+
+```{r, fig.height=7, fig.width=10}
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain")
+
+
+Tissue <- "CortexEntorhinalis" 
+TG_colour <- "purple"
+
+dat <- samplesheet[which(samplesheet$Tissue == Tissue),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+
+## WT samples only
+# plotWTSamples(dat, clocks, tissue = "ECX", model = "")
+
+dat1 <-dat[which(dat$AD_model == "rTg4510"),]
+dat1$GenoCol <- ifelse(dat1$Genotype == "WT", "black", "#00AEC9")
+dat1$ModelShape <- rep(1, nrow(dat1))
+
+dat2 <-dat[which(dat$AD_model == "J20"),]
+dat2$GenoCol <- ifelse(dat2$Genotype == "WT", "black", "#FF5A62")
+dat2$ModelShape <- rep(2, nrow(dat2))
+dat <- rbind(dat1, dat2)
+
+#Plots for TGs and WTs samples
+model = ""
+tissue = "ECX"
+par(mfrow = c(1,2))
+for(clock in clocks){
+  corr <- cor(dat$Age, dat[, clock])
+  err <- rmse(preds = dat[, clock], actuals = dat$Age)
+  plot(dat$Age, dat[, clock], col = dat$GenoCol,pch = dat$ModelShape,
+       xlab = "Age", ylab = as.character(clock),
+       main = paste(paste(model, tissue, sep = " "), clock, sep = " - "))
+  mtext(paste("cor = ", signif(corr,3)), side = 3, adj = 1)
+  mtext(paste("rmse = ", signif(err,3)), side = 3, adj = 0)
+  abline(0,1)
+  
+  legend("topleft", legend=c("WT rTg", "TG rTg", "WT J20", "TG J20"),
+       col=c("black","#00AEC9", "black","#FF5A62"), 
+       pch = c(1,1,2,2), 
+       lty=1:2, cex=0.8)
+}
+
+
+## all samples WT and TGs
+# plotSamples(dat, clocks, tissue = "ECX", model = "")
+
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age +  Genotype*Age + AD_model, na.action=na.omit, data=samplesheet, subset=Tissue=="CortexEntorhinalis", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age +  Pathology + AD_model, na.action=na.omit, data=samplesheet, subset=Tissue=="CortexEntorhinalis", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+```
+
+
+Hippocampus
+
+```{r, fig.height=7, fig.width=10}
+## make a plot of actual age and DNAmAge for each type
+clocks <- c("DNAmAgeClockCortex", "DNAmAgeClockBrain" )
+
+
+Tissue <- "Hippocampus" 
+TG_colour <- "purple"
+
+dat <- samplesheet[which(samplesheet$Tissue == Tissue),]
+dat$Genotype <- factor(dat$Genotype, levels = c("WT","TG"))
+dat$GenotypeCol <-  ifelse(dat$Genotype == "WT", "black", TG_colour)
+
+## WT samples only
+# plotWTSamples(dat, clocks, tissue = "HIP", model = "")
+
+dat1 <-dat[which(dat$AD_model == "rTg4510"),]
+dat1$GenoCol <- ifelse(dat1$Genotype == "WT", "black", "#00AEC9")
+dat1$ModelShape <- rep(1, nrow(dat1))
+
+dat2 <-dat[which(dat$AD_model == "J20"),]
+dat2$GenoCol <- ifelse(dat2$Genotype == "WT", "black", "#FF5A62")
+dat2$ModelShape <- rep(2, nrow(dat2))
+dat <- rbind(dat1, dat2)
+
+#Plots for TGs and WTs samples
+model = ""
+tissue = "HIP"
+par(mfrow = c(1,2))
+for(clock in clocks){
+  corr <- cor(dat$Age, dat[, clock])
+  err <- rmse(preds = dat[, clock], actuals = dat$Age)
+  plot(dat$Age, dat[, clock], col = dat$GenoCol,pch = dat$ModelShape,
+       xlab = "Age", ylab = as.character(clock),
+       main = paste(paste(model, tissue, sep = " "), clock, sep = " - "))
+  mtext(paste("cor = ", signif(corr,3)), side = 3, adj = 1)
+  mtext(paste("rmse = ", signif(err,3)), side = 3, adj = 0)
+  abline(0,1)
+  
+  legend("topleft", legend=c("WT rTg", "TG rTg", "WT J20", "TG J20"),
+       col=c("black","#00AEC9", "black","#FF5A62"), 
+       pch = c(1,1,2,2), 
+       lty=1:2, cex=0.8)
+
+  
+}
+
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age +  Genotype*Age + AD_model, na.action=na.omit, data=samplesheet, subset=Tissue=="Hippocampus", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+kable(summary(lme(DNAmAgeClockCortex ~ Genotype + Age +  Pathology + AD_model, na.action=na.omit, data=samplesheet, subset=Tissue=="Hippocampus", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+print("DNAmAgeClockBrain")
+
+kable(summary(lme(DNAmAgeClockBrain ~ Genotype + Age +  Genotype*Age + AD_model, na.action=na.omit, data=samplesheet, subset=Tissue=="Hippocampus", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+kable(summary(lme(DNAmAgeClockBrain ~ Genotype + Age +  Pathology + AD_model, na.action=na.omit, data=samplesheet, subset=Tissue=="Hippocampus", random= ~1|MouseID))$tTable
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+```
+
+
+## Age*Age
+
+Age squared lets us know whether age is linear or changes direction from early to old samples (Parabola).
+
+We look at each tissue and model.
+
+ECX rTg4510
+
+```{r}
+kable(summary(lm(DNAmAgeClockCortex ~ Age*Age, data=samplesheet[which(samplesheet$Tissue=="CortexEntorhinalis" & samplesheet$AD_model=="rTg4510"),]))$coef
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "150px")
+
+```
+
+
+HIP rTg4510
+
+```{r}
+kable(summary(lm(DNAmAgeClockCortex ~ Age*Age, data=samplesheet[which(samplesheet$Tissue=="Hippocampus" & samplesheet$AD_model=="rTg4510"),]))$coef
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "150px")
+
+```
+
+ECX J20
+
+```{r}
+kable(summary(lm(DNAmAgeClockCortex ~ Age*Age, data=samplesheet[which(samplesheet$Tissue=="CortexEntorhinalis" & samplesheet$AD_model=="J20"),]))$coef
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "150px")
+
+```
+
+
+HIP J20 
+
+```{r}
+kable(summary(lm(DNAmAgeClockCortex ~ Age*Age, data=samplesheet[which(samplesheet$Tissue=="Hippocampus" & samplesheet$AD_model=="J20"),]))$coef
+) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "150px")
+
+```

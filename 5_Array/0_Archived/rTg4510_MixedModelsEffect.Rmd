@@ -1,0 +1,444 @@
+---
+title: "rTg4510 - Mixed Model Effects"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+```{r load libraries, warning=F, message=F}
+library(lmerTest)
+library(lmtest)
+library(ggfortify)
+library(glmmTMB)
+library(ggplot2)
+library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+library(grid)
+library(qqman)
+library(pheatmap)
+```
+
+
+```{r load data, warning=F, message=F}
+source("/gpfs/ts0/projects/Research_Project-191406/Aisha/script/rrbs-ad-mice/PlotFunctions.R")
+load("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Normalised_Data_Sesame_2.rdat")
+QCmetrics$SampleID <- gsub(".*_", "", QCmetrics$ExternalSampleID)
+
+rTg4510_path <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Tg4510_coldata_VertebrateArray.csv",header = T, stringsAsFactors = F)
+
+## ! The same samples do not have the same sample ID, these are matched on the pathology file. If we get the 
+## same order of the sample ID as the pathology file then they are matched correctly
+### ECX
+pheno_rTg4510_ECX <- QCmetrics[which(QCmetrics$Tissue == "CortexEntorhinalis" & QCmetrics$AD_model == "rTg4510"),]
+betas_rTg4510_ECX <- Normalised_Sesame_Betas[,colnames(Normalised_Sesame_Betas) %in% pheno_rTg4510_ECX$Basename ]
+if(!identical(pheno_rTg4510_ECX$Basename, colnames(betas_rTg4510_ECX))){
+  print("Pheno and Betas matrix basename and column names do not match")
+}
+colnames(betas_rTg4510_ECX) <- pheno_rTg4510_ECX$SampleID
+rownames(pheno_rTg4510_ECX) <- pheno_rTg4510_ECX$SampleID 
+pheno_rTg4510_ECX <- pheno_rTg4510_ECX[rTg4510_path$Sample_ID_ECX, ] #order based on pathology samples id (NA rows will be generated)
+pheno_rTg4510_ECX <- cbind(pheno_rTg4510_ECX, rTg4510_path)
+### Hip
+pheno_rTg4510_HIP <- QCmetrics[which(QCmetrics$Tissue == "Hippocampus" & QCmetrics$AD_model == "rTg4510"),]
+betas_rTg4510_HIP <- Normalised_Sesame_Betas[,colnames(Normalised_Sesame_Betas) %in% pheno_rTg4510_HIP$Basename ]
+colnames(betas_rTg4510_HIP) <- pheno_rTg4510_HIP$SampleID
+rownames(pheno_rTg4510_HIP) <- pheno_rTg4510_HIP$SampleID 
+pheno_rTg4510_HIP <- pheno_rTg4510_HIP[rTg4510_path$Sample_ID_HIP, ] #order based on pathology samples id (NA rows will be generated)
+pheno_rTg4510_HIP <- cbind(pheno_rTg4510_HIP, rTg4510_path)
+
+# Match the same mouse with 2 brain regions
+samples <- as.data.frame(cbind(pheno_rTg4510_ECX$SampleID, pheno_rTg4510_HIP$SampleID))
+colnames(samples) <- c("ECX", "HIP")
+samples$ECX <- as.character(samples$ECX)
+samples$HIP <- as.character(samples$HIP)
+for(i in 1:nrow(samples)){
+  samples[i, "MouseID"] <- paste("M", i, sep="")
+}
+## 36 matched samples!!
+
+# Now filter these matching samples on both tissues
+### ecx
+if(!identical(pheno_rTg4510_ECX$SampleID, samples$ECX)){
+  print("Cortex pheno and sample ID are not the same order")
+}
+pheno_rTg4510_ECX$MouseID <- samples$MouseID[match(samples$ECX, pheno_rTg4510_ECX$SampleID)] #Now the orders are the same - add in the mouseIDs
+pheno_rTg4510_ECX <- pheno_rTg4510_ECX[colnames(betas_rTg4510_ECX), ]
+if(!identical(colnames(betas_rTg4510_ECX) , pheno_rTg4510_ECX$SampleID)){
+  print("For Cortex - betas column names and pheno sample ID are not identical")
+}
+
+### hip
+if(!identical(pheno_rTg4510_HIP$SampleID, samples$HIP)){
+  print("Hippocampus pheno and sample ID are not the same order")
+}
+pheno_rTg4510_HIP$MouseID <- samples$MouseID[match(samples$HIP, pheno_rTg4510_HIP$SampleID)] #Now the orders are the same - add in the mouseIDs
+pheno_rTg4510_HIP <- pheno_rTg4510_HIP[colnames(betas_rTg4510_HIP), ]
+if(!identical(colnames(betas_rTg4510_HIP) , pheno_rTg4510_HIP$SampleID)){
+  print("For hippocampus - betas column names and pheno sample ID are not identical")
+}
+
+pheno <- rbind(pheno_rTg4510_ECX, pheno_rTg4510_HIP)
+betas <- cbind(betas_rTg4510_ECX, betas_rTg4510_HIP)
+if(!identical(pheno$SampleID, colnames(betas))){
+  print("rTg4510 pheno and basename not in the same order")
+}
+
+
+pheno$Genotype <- factor(pheno$Genotype, levels = c("WT","TG"))
+pheno$Tissue <- factor(pheno$Tissue, levels = c("CortexEntorhinalis","Hippocampus"))
+pheno$Chip_ID <- as.factor(pheno$Chip_ID)
+pheno$MouseID <- as.factor(pheno$MouseID)
+
+pheno <- pheno[,c("Tissue","Genotype", "Age_months", "Chip_ID", "PlateNumber", "MouseID", "Pathology_ECX", "Pathology_HIP")]
+betas <- as.matrix(betas)
+
+#combine pathology into one column
+pheno$Pathology <- rep(NA, nrow(pheno))
+for(i in 1:nrow(pheno)){
+  pheno[i,"Pathology"] <- ifelse(pheno[i,"Tissue"] == 'CortexEntorhinalis', pheno[i,"Pathology_ECX"], 
+                         pheno[i,"Pathology_HIP"])
+}
+pheno <- pheno[,c("Tissue","Genotype", "Age_months", "Chip_ID", "PlateNumber", "MouseID", "Pathology")]
+
+```
+
+There are a total of 79 samples for the AD model rTg4510. 40 of these samples are from the Cortex Entorhinalis and 39 are from the Hippocampus. The table below summaries the equal distribution of samples across genotype as well. Combining the two brain regions may increase power to detect small differences had we analysed within tissues seperetely.
+
+There are 43 mouse - 7 which have one brain region and  36 which have both brain regions. 84% of samples have matched brains. 
+
+```{r summary table}
+d <- table(pheno$Tissue, pheno$Genotype)
+grid.table(d)
+
+```
+
+```{r numbers, echo = F}
+numregions <- table(pheno$Tissue, pheno$MouseID)[1,] + table(pheno$Tissue, pheno$MouseID)[2,]
+#sum(numregions == 1) # 7 -  number of mouse with one brain region 
+#sum(numregions == 2) # 36 - number of mouse with two brain regions
+
+e <- table(numregions)
+grid.table(t(e),rows = NULL, cols= c("1 Brain Region", "2 Brain Regions"))
+```
+
+
+
+## Mixed Effects Models
+
+$${Methylation } = {Tissue + Tissue*Genotype + Genotype + Age + Pathology + Tissue*Pathology + (1|Mouse)}$$
+
+This model will run through each probe producing stats for each site across the mouse genome. Age and tissue are added as covariates.
+
+* Genotype         - evaluates consistent genotype effects across tissues
+* Tissue*Genotype  - picks up genotype effects that are different between tissues
+* Pathology -      - consistent pathological effects across tissues
+* Tissue*Pathology - different pathological effects between tissues
+* (1|Mouse)        - this term controls for repeated measures in model
+
+
+From the analysis of 23,633 probes, 4 failed to fit the model and are removed from further analysis. This issue is most likely caused by the Tiisue*Pathology term as this had not occured without this term included ... 
+
+
+```{r run mme, echo=FALSE}
+# source("/gpfs/ts0/projects/Research_Project-191406/Aisha/script/rrbs-ad-mice/Array/MixedModelsEffectBetaReg_rTg4510.R")
+
+```
+
+```{r clean data, warning = F, message=F}
+rTg4510 <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/MixedModelResultswPathology_rTg4510.csv",header=T, stringsAsFactors = F)
+colnames(rTg4510)[colnames(rTg4510) == 'X'] <- 'cpg'
+mm10_Manifest <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/mm10_Manifest.csv", stringsAsFactors = F, header = T, row.names = 1)
+
+# Add annotation files - chr and bp
+probe_mapping_file <- read_csv("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/HorvathMammalChip_SpeciesGenomeCoordsUnique_v1.0.csv", col_types = cols(.default = "c"))
+species_mappability_name = "MusMusculus"
+species_probes <- probe_mapping_file[, c('probeID','MusMusculus')]
+species_probes <- as.data.frame(species_probes[!is.na(species_probes$MusMusculus),]) #23633
+species_probes$Chr <- gsub(":.*","",species_probes$MusMusculus)
+species_probes$Bp <- gsub(".*:","",species_probes$MusMusculus)
+
+rTg4510$Chr <- species_probes$Chr[match(species_probes$probeID, rTg4510[,"cpg"])]
+rTg4510$Bp <- species_probes$Bp[match(species_probes$probeID, rTg4510[,"cpg"])]
+# Convert x and y to numbers and remove non autosomal
+rTg4510<- rTg4510[-which(rTg4510$Chr %in% c("CHR_MG51_PATCH", "CHR_MG4200_PATCH","CHR_MG3699_PATCH")),]
+rTg4510$Chr <- gsub("X", 20, rTg4510$Chr)
+rTg4510$Chr <- gsub("Y", 21, rTg4510$Chr)
+rTg4510$Chr <- as.numeric(rTg4510$Chr)
+rTg4510$Bp <- as.numeric(rTg4510$Bp)
+rTg4510$Gene_Symbol <- mm10_Manifest$Gene_Symbol[match(rTg4510$cpg, mm10_Manifest$cpg)]
+rownames(rTg4510) <- rTg4510$cpg
+rTg4510$SNP <- rTg4510$Gene_Symbol
+
+##rTg4510 - 26,629 rows
+threshold <- 0.05
+color_Tg4510_TG <- "#00AEC9"
+```
+
+
+```{r failed probes, warning = F, messsage=F}
+# filters for four probes that did not converge with the model
+na_df <- as.data.frame(rTg4510[rowSums(is.na(rTg4510)) > 0,]) 
+na_df <- na_df[,-c(29:34)]
+na_df <- as.data.frame(na_df[rowSums(is.na(na_df)) > 0,]) 
+
+# remove these four probes
+rTg4510 <- rTg4510[setdiff(rownames(rTg4510),rownames(na_df)),]
+
+#rTg4510 - 23,625
+```
+
+```{r FDR Correction, warning = F, message = F}
+rTg4510$FDR_adj_GenotypeTG <- p.adjust(rTg4510[,"PrZ.GenotypeTG"], method = "fdr")
+rTg4510$FDR_adj_TissueGenotype <- p.adjust(rTg4510[,"PrZ.TissueHippocampus.GenotypeTG"], method = "fdr")
+rTg4510$FDR_adj_Pathology <- p.adjust(rTg4510[,"PrZ.Pathology"], method = "fdr")
+rTg4510$FDR_adj_TissuePathology <- p.adjust(rTg4510[,"PrZ.TissueHippocampus.Pathology"], method = "fdr")
+
+significant_tbl <- c()
+
+significant_tbl[1] <- nrow(rTg4510[which(rTg4510$FDR_adj_GenotypeTG < 0.05),])     #53
+significant_tbl[2] <- nrow(rTg4510[which(rTg4510$FDR_adj_TissueGenotype < 0.05),]) #1702
+significant_tbl[3] <- nrow(rTg4510[which(rTg4510$FDR_adj_Pathology < 0.05),])  #162
+significant_tbl[4] <- nrow(rTg4510[which(rTg4510$FDR_adj_TissuePathology < 0.05),])  #38
+
+significant_tbl <- as.data.frame(t(significant_tbl))
+rownames(significant_tbl) <- c("Significant Sites")
+colnames(significant_tbl) <- c("Genotype", "Tissue*Genotype", "Pathology", "Tissue*Pathology")
+grid.table(significant_tbl)
+
+```
+
+### Genotype
+
+```{r, warning = F, message = F}
+#### Raw p values
+lamda <- qchisq(1-median(rTg4510$PrZ.GenotypeTG),1)/qchisq(0.5,1)
+qq(rTg4510$PrZ.GenotypeTG, main = "Genotype raw pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+
+#### FDR corrected qqplots
+lamda <- qchisq(1-median(rTg4510$FDR_adj_GenotypeTG),1)/qchisq(0.5,1)
+qq(rTg4510$FDR_adj_GenotypeTG, main = "Genotype FDR corrected pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+```
+
+
+```{r, warning = F, message = F}
+manhattan(rTg4510, p = "FDR_adj_GenotypeTG", bp = "Bp", chr = "Chr", 
+          genomewide = -log10(threshold), suggestiveline = FALSE, 
+          logp=T, col = c("black", color_Tg4510_TG), main = "Genotype",
+          chrlabs = c(1:19, "X", "Y"),las = 2, annotatePval = threshold,
+          cex.axis = 1.5, cex.lab = 1.2)
+#mapt is distorting the manhattan plot so we can remove tht for now
+rTg4510 <- rTg4510[order(rTg4510$PrZ.GenotypeTG),]
+rTg4510_2 <- rTg4510[-1,]
+manhattan(rTg4510_2, p = "FDR_adj_GenotypeTG", bp = "Bp", chr = "Chr", 
+          genomewide = -log10(threshold), suggestiveline = FALSE, 
+          logp=T, col = c("black", color_Tg4510_TG), main = "Genotype (mapt removed)",
+          chrlabs = c(1:19, "X", "Y"),las = 2, annotatePval = threshold,
+          cex.axis = 1.5, cex.lab = 1.2)
+
+```
+
+```{r, warning = F, message = F, fig.show='hold',out.width="50%"}
+rTg4510 <- rTg4510[order(rTg4510$FDR_adj_GenotypeTG),]
+par(mfrow = c(2, 3))
+for(i in 1:6){
+  plotTissueGenotypeDMP(cpg = rownames(rTg4510[i,]), betaResults = rTg4510, betas = betas, pheno = pheno, 
+                        colour = color_Tg4510_TG, column= "FDR_adj_GenotypeTG")
+}
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_GenotypeTG <= 0.05), "cpg"]),]
+betas_sig <- betas[rownames(rTg4510_sig),]
+pheno_plot <- pheno[,c("Tissue","Genotype", "Age_months", "Pathology")]
+
+pheatmap(betas_sig,  
+         annotation_col = pheno_plot,
+         cluster_rows = T,
+         show_rownames = F,
+         show_colnames = F)
+
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_GenotypeTG <= 0.05), "cpg"]),]
+rTg4510_sig <- rTg4510_sig[order(rTg4510_sig$FDR_adj_GenotypeTG),]
+rTg4510_sig <- rTg4510_sig[,c("cpg", "Gene_Symbol", "Betas.GenotypeTG","SE.GenotypeTG","PrZ.GenotypeTG","FDR_adj_GenotypeTG")]
+colnames(rTg4510_sig) <- c("cpg", "Gene_Symbol", "Beta","SE", "Raw.Pvalues", "FDR.Adj.Pvalues")
+write.csv(rTg4510_sig, "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/rTg4510_MME_Genotype.csv")
+
+```
+
+### Tissue*Genotype
+
+```{r, warning = F, message = F}
+#### Raw p values
+lamda <- qchisq(1-median(rTg4510$PrZ.TissueHippocampus.GenotypeTG),1)/qchisq(0.5,1)
+qq(rTg4510$PrZ.TissueHippocampus.GenotypeTG, main = "Tissue*Genotype raw pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+
+#### FDR corrected qqplots
+lamda <- qchisq(1-median(rTg4510$FDR_adj_TissueGenotype),1)/qchisq(0.5,1)
+qq(rTg4510$FDR_adj_TissueGenotype, main = "Tissue*Genotype FDR corrected pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+```
+
+
+```{r, warning = F, message = F}
+manhattan(rTg4510, p = "FDR_adj_TissueGenotype", bp = "Bp", chr = "Chr", 
+          genomewide = -log10(threshold), suggestiveline = FALSE, 
+          logp=T, col = c("black", color_Tg4510_TG), main = "Tissue*Genotype",
+          chrlabs = c(1:19, "X", "Y"),las = 2, annotatePval = threshold,
+          cex.axis = 1.5, cex.lab = 1.2)
+```
+
+```{r, warning = F, message = F, fig.show='hold',out.width="50%"}
+rTg4510 <- rTg4510[order(rTg4510$FDR_adj_TissueGenotype),]
+par(mfrow = c(2, 3))
+for(i in 1:6){
+  plotTissueGenotypeDMP(cpg = rownames(rTg4510[i,]), betaResults = rTg4510, betas = betas, pheno = pheno, 
+                        colour = color_Tg4510_TG, column= "FDR_adj_TissueGenotype")
+}
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_TissueGenotype <= 0.05), "cpg"]),]
+betas_sig <- betas[rownames(rTg4510_sig),]
+pheno_plot <- pheno[,c("Tissue","Genotype", "Age_months", "Pathology")]
+
+pheatmap(betas_sig,  
+         annotation_col = pheno_plot,
+         cluster_rows = T,
+         show_rownames = F,
+         show_colnames = F)
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_TissueGenotype <= 0.05), "cpg"]),]
+rTg4510_sig <- rTg4510_sig[order(rTg4510_sig$FDR_adj_TissueGenotype),]
+rTg4510_sig <- rTg4510_sig[,c( "cpg", "Gene_Symbol", "Betas.TissueHippocampus.GenotypeTG","SE.TissueHippocampus.GenotypeTG",
+                       "PrZ.TissueHippocampus.GenotypeTG","FDR_adj_TissueGenotype")]
+colnames(rTg4510_sig) <- c("cpg", "Gene_Symbol", "Beta","SE", "Raw.Pvalues", "FDR.Adj.Pvalues")
+write.csv(rTg4510_sig, "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/rTg4510_MME_TissueGenotypeInteraction.csv")
+
+```
+
+### Pathology
+
+```{r, warning = F, message = F}
+#### Raw p values
+lamda <- qchisq(1-median(rTg4510$PrZ.Pathology),1)/qchisq(0.5,1)
+qq(rTg4510$PrZ.Pathology, main = "Pathology raw pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+
+#### FDR corrected qqplots
+lamda <- qchisq(1-median(rTg4510$FDR_adj_Pathology),1)/qchisq(0.5,1)
+qq(rTg4510$FDR_adj_Pathology, main = "Pathology FDR corrected pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+```
+
+
+```{r, warning = F, message = F}
+manhattan(rTg4510, p = "FDR_adj_Pathology", bp = "Bp", chr = "Chr", 
+          genomewide = -log10(threshold), suggestiveline = FALSE, 
+          logp=T, col = c("black", color_Tg4510_TG), main = "Pathology",
+          chrlabs = c(1:19, "X", "Y"),las = 2, annotatePval = threshold,
+          cex.axis = 1.5, cex.lab = 1.2)
+```
+
+```{r, warning = F, message = F, fig.show='hold',out.width="50%"}
+rTg4510 <- rTg4510[order(rTg4510$FDR_adj_Pathology),]
+par(mfrow = c(2, 3))
+for(i in 1:6){
+  plotPathologyDMP(cpg = rownames(rTg4510[i,]), betaResults = rTg4510, betas = betas, pheno = pheno, 
+                   colour = color_Tg4510_TG, column= "FDR_adj_Pathology")
+}
+```
+
+```{r, warning = F, message = F}
+
+
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_Pathology <= 0.05), "cpg"]),]
+betas_sig <- betas[rownames(rTg4510_sig),]
+pheno_plot <- pheno[,c("Tissue","Genotype", "Age_months", "Pathology")]
+
+pheatmap(betas_sig,  
+         annotation_col = pheno_plot,
+         cluster_rows = T,
+         show_rownames = F,
+         show_colnames = F)
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_Pathology <= 0.05), "cpg"]),]
+rTg4510_sig <- rTg4510_sig[order(rTg4510_sig$FDR_adj_Pathology),]
+
+rTg4510_sig <- rTg4510_sig[,c( "cpg", "Gene_Symbol", "Betas.Pathology","SE.Pathology","PrZ.Pathology", "FDR_adj_Pathology")]
+colnames(rTg4510_sig) <- c("cpg", "Gene_Symbol", "Beta","SE", "Raw.Pvalues", "FDR.Adj.Pvalues")
+write.csv(rTg4510_sig, "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/rTg4510_MME_Pathology.csv")
+```
+
+### Tissue*Pathology
+
+```{r, warning = F, message = F}
+#### Raw p values
+lamda <- qchisq(1-median(rTg4510$PrZ.TissueHippocampus.Pathology),1)/qchisq(0.5,1)
+qq(rTg4510$PrZ.TissueHippocampus.Pathology, main = "Tissue*Pathology raw pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+
+#### FDR corrected qqplots
+lamda <- qchisq(1-median(rTg4510$FDR_adj_TissuePathology),1)/qchisq(0.5,1)
+qq(rTg4510$FDR_adj_TissuePathology, main = "Tissue*Pathology FDR corrected pvalues")
+mtext(paste("Lamda = ", signif(lamda,3)), side = 3, adj = 1)
+```
+
+
+```{r, warning = F, message = F}
+manhattan(rTg4510, p = "FDR_adj_TissuePathology", bp = "Bp", chr = "Chr", 
+          genomewide = -log10(threshold), suggestiveline = FALSE, 
+          logp=T, col = c("black", color_Tg4510_TG), main = "Tissue*Pathology",
+          chrlabs = c(1:19, "X", "Y"),las = 2, annotatePval = threshold,
+          cex.axis = 1.5, cex.lab = 1.2)
+```
+
+```{r, warning = F, message = F, fig.show='hold',out.width="50%"}
+rTg4510 <- rTg4510[order(rTg4510$FDR_adj_TissuePathology),]
+par(mfrow = c(2, 3))
+for(i in 1:6){
+  plotPathologyDMP(cpg = rownames(rTg4510[i,]), betaResults = rTg4510, betas = betas, pheno = pheno, 
+                   colour = color_Tg4510_TG, column= "FDR_adj_TissuePathology" )
+}
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_TissuePathology <= 0.05), "cpg"]),]
+betas_sig <- betas[rownames(rTg4510_sig),]
+pheno_plot <- pheno[,c("Tissue","Genotype", "Age_months", "Pathology")]
+
+pheatmap(betas_sig,  
+         annotation_col = pheno_plot,
+         cluster_rows = T,
+         show_rownames = F,0
+         show_colnames = F)
+```
+
+```{r, warning = F, message = F}
+rTg4510_sig <- rTg4510[1:length(rTg4510[which(rTg4510$FDR_adj_TissuePathology <= 0.05), "cpg"]),]
+rTg4510_sig <- rTg4510_sig[order(rTg4510_sig$FDR_adj_TissuePathology),]
+
+rTg4510_sig <- rTg4510_sig[,c( "cpg", "Gene_Symbol",
+                       "Betas.TissueHippocampus.Pathology","SE.TissueHippocampus.Pathology",
+                       "PrZ.TissueHippocampus.Pathology", "FDR_adj_TissuePathology")]
+colnames(rTg4510_sig) <- c("cpg", "Gene_Symbol", "Beta","SE", "Raw.Pvalues", "FDR.Adj.Pvalues")
+write.csv(rTg4510_sig, "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/rTg4510_MME_TissuePathology.csv")
+```

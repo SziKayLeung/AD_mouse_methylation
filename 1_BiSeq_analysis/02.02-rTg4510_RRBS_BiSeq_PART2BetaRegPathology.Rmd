@@ -1,0 +1,164 @@
+---
+title: "RRBS - BiSeq rTg4510 Part 2 - Beta Regression - Pathology"
+author: "Isabel Castanho (I.S.Castanho@exeter.ac.uk)"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true # to create the table of contents
+    toc_float: false # make it float so that as you scroll down the page, the toc will always be visible
+    number_sections: false # number_sections is for automatic numbering of #, ## etc. sections
+    code_folding: hide
+---
+
+
+```{css, echo=FALSE}
+body .main-container {
+  max-width: 1800px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/')
+
+# # # load packages
+# # if (!requireNamespace("BiocManager", quietly = TRUE))
+# #     install.packages("BiocManager")
+# # 
+# # BiocManager::install("BiSeq")
+# 
+library(BiSeq)
+library(betareg)
+library(gplots)
+library(cgwtools) # package that allows to resave objects in R using resave(..., list = character(), file)
+library(lmtest) # to use likelihood-ratio test (lrt)
+
+# load(file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_rTg4510.RData") # complete file
+load(file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseq_predictedMeth_rTg4510.RData") # predictedMeth
+
+color_Tg4510_TG <- "#00AEC9"
+```
+
+
+To detect the CpG sites where the DNA methylation differs due to accumulation of pathology, we model the methylation within a beta regression: Methylation = ~Pathology
+
+```{r}
+numCores <- detectCores()
+numCores
+```
+
+### 3. Model and test group effect
+```{r}
+betaResultsPathology <- betaRegression(formula = ~ECX,
+                                       link = "probit",
+                                       object = predictedMeth[1:10,],
+                                       type = "BR",
+                                       mc.cores = numCores)
+# betaResults is a data.frame containing model and test information for each CpG site
+# By setting type = "BR" the maximum likelihood with bias reduction is called
+
+betaResults <- betaResultsPathology
+
+save(betaResults, file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseqBetaResultsPathology_rTg4510.RData")
+```
+
+Head results for Pathology
+```{r}
+head(betaResults)
+```
+
+Summary results
+```{r}
+summary(betaResults)
+```
+
+
+###  4.1. Test CpG clusters for differential methylation
+The aim is to detect CpG clusters containing at least one differentially methylated location.
+To do so the P values p from the Wald tests are transformed to Z scores: z= Φ−1(1−p), which are normally distributed under Null hypothesis (no group effect).
+As cluster test statistic a standardized Z score average is used.  To estimate the standard deviation of the Z scores we have to estimate the correlation and hence the variogram of methylation between two  CpG  sites  within  a  cluster.   The  estimation  of  the  standard  deviation requires that the distribution of the Z scores follows a standard normal distribution.  However, if methylation in both groups differs for many CpG sites the density distribution of P values shows a peak near 0.  
+To ensure that the P values are roughly uniformly distributed to get a variance of the Z scores that is Gaussian with variance 1 we recommend to estimate the variogram (and hence the correlation of Z scores) under the null hypothesis.  To do so we model the beta regression again for resampled data:
+```{r}
+# # Both resampled groups should have the same number of
+# # cases and control samples:
+# # Take bottom 16 rows of the ColData predictedMeth
+# predictedMethNull <- predictedMeth[,46:61]
+# # Age and Genotype selected are random to not group based on genotype or age - we selected 16 for 2 genotype, 4 time points and repeated twice to increase randomness
+# colData(predictedMethNull)$group.null <- rep(c(1,2), each = 8)
+# print(colData(predictedMethNull))
+# # To shorten the run time, please set mc.cores, if possible!
+# betaResultsNull <- betaRegression(formula = ~group.null,
+#                                         link = "probit",
+#                                         object = predictedMethNull,
+#                                         type="BR",
+#                                         mc.cores = 16)
+# 
+# vario <- makeVariogram(betaResultsNull)
+# 
+# save(betaResultsNull, vario, predictedMethNull,
+#       file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseqBetaResultsNull_rTg4510.RData")
+
+```
+
+```{r}
+# Load the previous chunk betaResultsNull rdat object. Also print the samples used to generate the betaResultsNull
+load("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseqBetaResultsNull_rTg4510.RData")
+print(colData(predictedMethNull))
+```
+
+We estimate the variogram for the Z scores obtained for the resampled data.  
+Based  on  the  variogram  plot  we  evaluate  the sill  (usually  near  1)  of  the variogram and smooth the curve:
+```{r fig5, fig.height = 5, fig.width = 5, fig.cap = "Figure 5:  Estimated variogram together with the smoothed curve"}
+plot(vario$variogram$v, ylim = c(0, 1.5))
+vario.sm <- smoothVariogram(vario, sill = 0.9) # The vario.sm object is a list of two: "variogram" "pValsList"
+lines(vario.sm$variogram[,c("h", "v.sm")],col = "red", lwd = 1.5)
+grid()
+```
+
+```{r}
+# # Save all ojects from betaResultsNull
+# resave(betaResultsNull, vario, vario.sm, predictedMethNull,
+#      file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseqBetaResultsNull_rTg4510.RData")
+```
+
+```{r}
+head(vario.sm$pValsList[[1]])
+```
+
+vario.sm contains the smoothed variogram under the Null hypothesis together with the P values (and Z scores) from the Wald test, that the group has no effect on methylation.  The correlation of the Z scores between two locations in a cluster can now be estimated:
+```{r}
+locCor <- estLocCor(vario.sm)
+```
+
+We test each CpG cluster for the presence of at least one differentially methylated  location  at q what  can  be  interpreted  as  the  size-weighted  FDR  on clusters:
+```{r}
+clusters.rej <- testClusters(locCor, FDR.cluster = 0.10)
+
+clusters.rej$clusters.reject
+```
+
+###  4.2. Trim significant CpG clusters
+
+```{r}
+clusters.trimmed <- trimClusters(clusters.rej, FDR.loc = 0.10)
+head(clusters.trimmed)
+# clusters.trimmed is a data.frame object containing all differentially methylated CpG sites. The p.li column contains the P values estimated in the cluster trimming step
+```
+
+### 5. Defnition of DMR boundaries
+
+```{r}
+DMRs <- findDMRs(clusters.trimmed,
+                 max.dist = 500,
+                 diff.dir = TRUE)
+DMRs
+
+DMRsPathology <- as.data.frame(DMRs)
+write.csv(DMRsPathology, file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMRs/rTg4510/DMRsPathology.csv")
+
+DMRsPathology <- DMRs
+save(betaResultsPathology, DMRsPathology,
+     file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/biseqResultsPathology_rTg4510.RData")
+```

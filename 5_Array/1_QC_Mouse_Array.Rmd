@@ -1,0 +1,771 @@
+---
+title: "Mouse_QC"
+
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This is an R Markdown document for the Quality Control (QC) of Mammalian array data for Dementia Mouse samples. 
+
+
+###Study Information
+**Study:** Dementia Mouse 
+
+**Description:** 2 plates of mouse samples (whole and sorted)  
+
+**Arrays ran by:** Isabel Castanho, The University of Exeter Medical School
+
+**Array used:** Mammalian Array 
+
+**QC done by:**Aisha Dahir, The University of Exeter Medical School
+
+**Date of QC:** `r format(Sys.Date(), format="%d %B %Y")`
+
+**Sample tissue:** Cortex Entorhinalis, Hippocampus, Sorted nuclei (neuN_pos, neuN_neg and total)
+
+
+```{r, warning=FALSE, message=FALSE, echo = FALSE}
+library(tidyverse)
+library(minfi)
+library(sesame)
+library(HorvathMammalMethylChip40manifest)
+library(HorvathMammalMethylChip40anno.test.unknown)
+
+library(wateRmelon)
+library(ggplot2)
+library(gdata)
+require(gridExtra)
+library(grid)
+```
+
+# 1  Loading data
+
+As the array is not 450K nor EPIC, reading in the files may differ as well as the following QC methods. Probes and samples will be excluded at the end of the sample.
+
+```{r read files in , warning = FALSE, echo = FALSE, message = FALSE}
+#directory set ups
+data_directory <- "/gpfs/ts0/projects/Research_Project-191406/Horvath/"
+project_directory <- "N43.2019-9006MouseJonMill"
+project_number <- "43"
+
+#read sample sheet in
+sample_sheet_file_name <- paste0(data_directory, project_directory, "/SampleSheetAgeN", project_number, "final.csv")
+sample_sheet <- read_csv(sample_sheet_file_name)
+sample_sheet <- sample_sheet %>%
+  mutate(idat_name = Basename)
+sample_sheet <- separate(sample_sheet, "Basename", into=c("Slide", "stripe"), sep="_")
+sample_sheet <- sample_sheet %>% 
+  mutate(Basename = paste0(data_directory, project_directory, "/idatFiles/", Slide, "/", idat_name))
+sample_sheet %>% dplyr::select(Basename) %>% head
+
+# read idat files in
+# Creates an RGChannelSet object containing the raw red green channel information from the idat files
+RGset <- read.metharray.exp(base=NULL, targets=sample_sheet, recursive=TRUE) 
+# Annotates the RGset object with probe coordinates. This line is currently just a place holder as the annotation is empty, but needs to be run anyway.
+RGset@annotation = c(array='HorvathMammalMethylChip40', annotation="test.unknown")
+# Calling getBeta on the RGset object will return a data frame of raw beta values for each CG site
+raw_betas_minfi <- as_tibble(getBeta(RGset), rownames="CGid") # a tibble is just a regular data frame where the rownames are a separate variable
+
+```
+
+The phenotype file containing the sample information was loaded into R. There are `r nrow(sample_sheet)` samples of which `r nrow(sample_sheet$ExternalSampleID == "methylated_control")` samples are fully methylated control samples.
+
+
+```{r make RGset, echo = FALSE, warning = FALSE, error = FALSE}
+Mset = preprocessRaw(RGset)
+SamplesFail<-as.logical(rep("FALSE", nrow(sample_sheet)))
+#Entries will be changed to TRUE as samples fail 
+Stepsummary<-as.data.frame(matrix(ncol=0, nrow=2))
+rownames(Stepsummary)<-c("Failed This Step", "Total Failed")
+
+```
+
+
+# 2 Intensity check
+
+The intensity check is the biggest indicator of sample quality. The median methylated signal intensity and unmethylated signal intensity for each sample is calculcated.
+
+```{r medianintensities, include=FALSE, echo = FALSE}
+m_intensities<-getMeth(Mset)
+u_intensities<-getUnmeth(Mset)
+M.median<-apply(m_intensities, 2, median)
+U.median<-apply(u_intensities, 2, median)
+QCmetrics<-cbind(sample_sheet,M.median, U.median)
+
+sample_sheet$Control <- sample_sheet$ExternalSampleID == "methylated_control"
+```
+
+A histogram and scatter plot of the resulting data are plotted to visualise the data quality. Samples are coloured by methylation plate or institute, to make sure there are no batch effects.
+
+```{r plotintensities, echo=FALSE}
+# coloured by plate
+plotfactor<-factor(QCmetrics$PlateNumber, levels=c(unique(QCmetrics$PlateNumber))) 
+par(mfrow = c(1,2))
+hist(M.median, xlab = "Median M intensity", main="Histogram of Median Methylated Intensities", cex.main=0.7)
+hist(U.median, xlab = "Median U intensity", main="Histogram of Median Unmethylated Intensities", cex.main=0.7)
+par(mfrow = c(1,1))
+plot(M.median, U.median, pch = 16, xlab = "Median M intensity", ylab = "Median U intensity", col = rainbow(nlevels(plotfactor))[factor(plotfactor)], main="Scatter plot of Signal Intensities coloured by Plate")
+par(xpd=TRUE)
+legend("topright", levels(factor(plotfactor)), col = rainbow(nlevels(plotfactor)), pch = 10, cex=0.5)
+
+# coloured by Tissue
+plotfactor<-factor(QCmetrics$Tissue, levels=c(unique(QCmetrics$Tissue))) 
+par(mfrow = c(1,1))
+plot(M.median, U.median, pch = 16, xlab = "Median M intensity", ylab = "Median U intensity", col = rainbow(nlevels(plotfactor))[factor(plotfactor)], main="Scatter plot of Signal Intensities coloured by Tissue")
+par(xpd=TRUE)
+legend("topright", levels(factor(plotfactor)), col = rainbow(nlevels(plotfactor)), pch = 10, cex=0.5)
+
+# coloured by AD Model
+plotfactor<-factor(QCmetrics$AD_model, levels=c(unique(QCmetrics$AD_model))) 
+par(mfrow = c(1,1))
+plot(M.median, U.median, pch = 16, xlab = "Median M intensity", ylab = "Median U intensity", col = rainbow(nlevels(plotfactor))[factor(plotfactor)], main="Scatter plot of Signal Intensities coloured by AD_Model")
+par(xpd=TRUE)
+legend("topright", levels(factor(plotfactor)), col = rainbow(nlevels(plotfactor)), pch = 10, cex=0.5)
+
+# coloured by Genotype
+plotfactor<-factor(QCmetrics$Genotype, levels=c(unique(QCmetrics$Genotype))) 
+par(mfrow = c(1,1))
+plot(M.median, U.median, pch = 16, xlab = "Median M intensity", ylab = "Median U intensity", col = rainbow(nlevels(plotfactor))[factor(plotfactor)], main="Scatter plot of Signal Intensities coloured by Genotype")
+par(xpd=TRUE)
+legend("topright", levels(factor(plotfactor)), col = rainbow(nlevels(plotfactor)), pch = 10, cex=0.5)
+```
+
+
+
+## Plate 1
+
+```{r reform samplesheet, echo = FALSE, warning= FALSE, message = FALSE}
+
+########## Reformat the QCmetric chips
+QCmetrics <- separate(data = QCmetrics, col = Basename, into = c("Chip_ID", "Chip_Position"), sep = "_")
+
+QCmetrics$Chip_Row <- substring(QCmetrics$Chip_Position,1,3)
+QCmetrics$Chip_Column <- substring(QCmetrics$Chip_Position,4,6)
+
+QCmetrics$Chip_Position<-factor(QCmetrics$Chip_Position)
+QCmetrics$Chip_ID<-factor(QCmetrics$Chip_ID, levels=rev(unique(QCmetrics$Chip_ID))) #keeps the levels of the factor in current order rather than sorting numerically/alphabetically, also reverses this order as heatmaps plot bottom to top
+
+
+
+plates<-unique(QCmetrics$PlateNumber)
+
+control_sentrix <- as.character(QCmetrics[which(QCmetrics$ExternalSampleID == "methylated_control"), "Chip_ID"])
+
+#extract the legend (using a function found online)
+g_legend<-function(a.gplot){
+    tmp <- ggplot_gtable(ggplot_build(a.gplot))
+    leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+    legend <- tmp$grobs[[leg]]
+    legend
+}
+```
+
+```{r plate1, fig.height= 10, fig.width= 18,echo = FALSE,fig.show='hold',out.height="50%"}
+
+samples<-QCmetrics[which(QCmetrics$PlateNumber == plates[1]),]
+Sentrix <- as.character(unique(samples$Chip_ID))
+
+plate2Meth <- list()
+plate2UnMeth <- list()
+for (i in 1:length(as.character(unique(samples$Chip_ID)))) {
+  Sentrix_i <- Sentrix[i]
+  Sample_Sentrix <- samples[which(samples$Chip_ID == Sentrix_i),]
+
+  if (Sentrix_i == unique(control_sentrix)){
+    control <- Sample_Sentrix[which(Sample_Sentrix$ExternalSampleID == "methylated_control"),]
+    control$Control <- control$ExternalSampleID == "methylated_control"
+    
+    plateHeatmap <- ggplot(data=Sample_Sentrix, aes(y=Chip_Row, x=Chip_Column)) +
+    scale_fill_gradientn(colours=colorRamps::matlab.like(100), limits=c(min(QCmetrics$U.median),max(QCmetrics$M.median))) +
+    labs(x="", y="") +
+    theme_minimal() + 
+    coord_equal(clip = 'off') +
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 0, hjust=1),
+          axis.text.y = element_text(angle = 1, hjust=1),
+          plot.margin = unit(c(0,15,0,0), "lines"))
+     
+  plate2Meth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=M.median), colour = "white") +
+    theme(legend.position = "none")  +
+    geom_point(data=control, aes(y=Chip_Row, x=Chip_Column)) +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+  
+  plate2UnMeth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=U.median), colour = "white") +
+    geom_point(data=control, aes(y=Chip_Row, x=Chip_Column)) +
+    theme(legend.position = "none")  +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+  
+  legendplot<-plateHeatmap + 
+    geom_tile(aes(fill=U.median), colour = "white") +
+    labs(fill="Intensity", alpha="Control") +
+    geom_point(data=control, aes(y=Chip_Row, x=Chip_Column, alpha=control$Control)) +
+    scale_alpha_manual(values=c(1,1,1)) + 
+    guides(alpha = guide_legend(override.aes = list(colour="black", pch=16)))
+  
+    legend <- g_legend(legendplot)
+} 
+  else
+  
+  {plateHeatmap <- ggplot(data=Sample_Sentrix, aes(y=Chip_Row, x=Chip_Column)) +
+    scale_fill_gradientn(colours=colorRamps::matlab.like(100), limits=c(min(QCmetrics$U.median),max(QCmetrics$M.median))) +
+    labs(x="", y="") +
+    theme_minimal() + 
+    coord_equal(clip = 'off') +
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 0, hjust=1),
+          axis.text.y = element_text(angle = 1, hjust=1),
+          plot.margin = unit(c(0,15,0,0), "lines"))
+     
+  plate2Meth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=M.median), colour = "white") +
+    theme(legend.position = "none")  +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+  
+  plate2UnMeth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=U.median), colour = "white") +
+    theme(legend.position = "none")  +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+    
+    legendplot<-plateHeatmap + 
+    geom_tile(aes(fill=U.median), colour = "white") +
+    labs(fill="Intensity", alpha="Control") +
+    scale_alpha_manual(values=c(1,1,1)) + 
+    guides(alpha = guide_legend(override.aes = list(colour="black", pch=16)))
+    
+    legend <- g_legend(legendplot)
+  }
+}
+margin = theme(plot.margin = unit(c(0,0,0,0), "lines"))
+
+title1=textGrob("Plate 1 median methylated intensity", gp=gpar(fontsize = 25))
+grid.arrange(nrow = 1, 
+             ncol = length(plate2Meth),
+             grobs = lapply(plate2Meth, "+",margin),
+             top=title1)
+
+title2=textGrob("Plate 1 median unmethylated intensity", gp=gpar(fontsize = 25))
+grid.arrange(nrow = 1, 
+             ncol = length(plate2UnMeth),
+             grobs = lapply(plate2UnMeth, "+",margin), 
+             top = title2)
+```
+
+```{r plate1 legend, echo = FALSE, warning= FALSE, message=FALSE}
+plot(legend)
+```
+
+## Plate 2
+
+```{r plate2, fig.height= 8, fig.width= 18,echo = FALSE,fig.show='hold',out.height="50%"}
+
+samples<-QCmetrics[which(QCmetrics$PlateNumber == plates[2]),]
+Sentrix <- as.character(unique(samples$Chip_ID))
+
+plate2Meth <- list()
+plate2UnMeth <- list()
+for (i in 1:length(as.character(unique(samples$Chip_ID)))) {
+  Sentrix_i <- Sentrix[i]
+  Sample_Sentrix <- samples[which(samples$Chip_ID == Sentrix_i),]
+  
+  if (Sentrix_i == unique(control_sentrix)){
+    control <- Sample_Sentrix[which(Sample_Sentrix$ExternalSampleID == "methylated_control"),]
+    control$Control <- control$ExternalSampleID == "methylated_control"
+    
+    plateHeatmap <- ggplot(data=Sample_Sentrix, aes(y=Chip_Row, x=Chip_Column)) +
+    scale_fill_gradientn(colours=colorRamps::matlab.like(100), limits=c(min(QCmetrics$U.median),max(QCmetrics$M.median))) +
+    labs(x="", y="") +
+    theme_minimal() + 
+    coord_equal(clip = 'off') +
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 0, hjust=1),
+          axis.text.y = element_text(angle = 1, hjust=1),
+          plot.margin = unit(c(0,15,0,0), "lines"))
+     
+  plate2Meth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=M.median), colour = "white") +
+    theme(legend.position = "none")  +
+    geom_point(data=control, aes(y=Chip_Row, x=Chip_Column)) +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+  
+  plate2UnMeth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=U.median), colour = "white") +
+    geom_point(data=control, aes(y=Chip_Row, x=Chip_Column)) +
+    theme(legend.position = "none")  +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+  
+  legendplot<-plateHeatmap + 
+    geom_tile(aes(fill=U.median), colour = "white") +
+    labs(fill="Intensity", alpha="Control") +
+    theme_minimal() + 
+    geom_point(data=control, aes(y=Chip_Row, x=Chip_Column, alpha=control$Control)) +
+    scale_alpha_manual(values=c(1,1,1)) + 
+    guides(alpha = guide_legend(override.aes = list(colour="black", pch=16)))
+  
+      legend <- g_legend(legendplot)
+} 
+  else
+  
+  {plateHeatmap <- ggplot(data=Sample_Sentrix, aes(y=Chip_Row, x=Chip_Column)) +
+    scale_fill_gradientn(colours=colorRamps::matlab.like(100), limits=c(min(QCmetrics$U.median),max(QCmetrics$M.median))) +
+    labs(x="", y="") +
+    theme_minimal() + 
+    coord_equal(clip = 'off') +
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 0, hjust=1),
+          axis.text.y = element_text(angle = 1, hjust=1),
+          plot.margin = unit(c(0,15,0,0), "lines"))
+     
+  plate2Meth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=M.median), colour = "white") +
+    theme(legend.position = "none")  +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+  
+  plate2UnMeth[[i]] <- plateHeatmap +
+    geom_tile(aes(fill=U.median), colour = "white") +
+    theme(legend.position = "none")  +
+    annotate(geom = "text", x = 0.8, y = 7,
+             label = Sentrix[i], hjust = 0, angle = 0, size = 5) 
+    
+    legendplot<-plateHeatmap + 
+    geom_tile(aes(fill=U.median), colour = "white") +
+    labs(fill="Intensity", alpha="Control") +
+    scale_alpha_manual(values=c(1,1,1)) + 
+      theme_minimal() + 
+    guides(alpha = guide_legend(override.aes = list(colour="black", pch=16)))
+    
+    legend <- g_legend(legendplot)
+  }
+}
+margin = theme(plot.margin = unit(c(0,0,0,0), "lines"))
+
+title1=textGrob("Plate 2 median methylated intensity", gp=gpar(fontsize = 25))
+grid.arrange(nrow = 1, 
+             ncol = length(plate2Meth),
+             grobs = lapply(plate2Meth, "+",margin),
+             top=title1 , legend)
+
+title2=textGrob("Plate 2 median unmethylated intensity", gp=gpar(fontsize = 25))
+grid.arrange(nrow = 1, 
+             ncol = length(plate2UnMeth),
+             grobs = lapply(plate2UnMeth, "+",margin), 
+             top = title2, legend)
+
+```
+
+
+
+```{r plate2 legend, echo = FALSE, warning= FALSE, message=FALSE}
+plot(legend)
+```
+
+
+## Removing Low Intensity Samples
+
+Although signal intensity is the largest predictor of sample quality, the threshold at which to exclude samples can vary from experiment to experiment - for example, signal intensities can vary slightly depending on tissue type or DNA extraction method. Samples which clearly deviate from the main cluster on the signal intensity plots should be removed. 
+
+```{r remove controls, echo FALSE}
+M.median<-M.median[!sample_sheet$Control]
+U.median<-U.median[!sample_sheet$Control]
+SamplesFail<-SamplesFail[!sample_sheet$Control]
+QCmetrics<-QCmetrics[!sample_sheet$Control,]
+RGset2<-RGset[,!sample_sheet$Control]
+sample_sheet<-sample_sheet[!sample_sheet$Control,]
+
+```
+
+```{r}
+lowintensitysamples<-which(M.median < 800 | U.median < 800)
+
+```
+
+```{r scatter500, echo=FALSE}
+Intensity<-rep("OK", nrow(sample_sheet))
+Intensity[lowintensitysamples] <-"LowIntensity"
+plotfactor<-as.factor(Intensity)
+plot(M.median, U.median, pch = 16, xlab = "Median M intensity", ylab = "Median U intensity", col=rainbow(2)[factor(plotfactor)])
+abline(v = 800, col = "red")
+abline(h = 800, col = "red")
+legend("topleft", levels(factor(plotfactor)), pch = 16, col = rainbow(2))
+```
+
+
+```{r updateQCmetrics1, include=FALSE}
+intensPASS <- M.median > 800
+SamplesFail[which(Intensity=="LowIntensity")]<-TRUE
+QCmetrics<-cbind(QCmetrics, Intensity, intensPASS)
+Step1<-c(sum(Intensity=="LowIntensity"),sum(SamplesFail))
+Stepsummary<-cbind(Stepsummary,Step1)
+```
+
+
+```{r Stepsummary1}
+print(Stepsummary)
+```
+
+
+# 3  Bisulphite Conversion
+A bisulphite conversion statistic for each sample was calculated, and a histogram of the results plotted. Samples with a conversion < 80% fail the QC.
+
+```{r bisulphiteconversion, echo=FALSE}
+#Make new rgset without methylated controls
+
+##New method
+#green channel
+csp.green <- function (RGsetEx, controls = c("BISULFITE CONVERSION I", "BISULFITE CONVERSION II"))
+{
+  minfi:::.isRGOrStop(RGsetEx)
+  r <- getRed(RGsetEx)
+  g <- getGreen(RGsetEx)
+  sapply (controls, function( controlType ) {
+    
+    ctrlAddress <- try (getControlAddress(RGsetEx, controlType = controlType), silent = T)
+    if (!inherits (ctrlAddress, 'try-error')){ctrlAddress <- getControlAddress(RGsetEx, controlType = controlType)}
+    else
+      stop ("450k QC data could not be found")
+    
+    
+    g[ctrlAddress, ]
+  })}
+#red channel
+csp.red <- function (RGsetEx, controls = c("BISULFITE CONVERSION I", "BISULFITE CONVERSION II"))
+{
+  minfi:::.isRGOrStop(RGsetEx)
+  r <- getRed(RGsetEx)
+  g <- getGreen(RGsetEx)
+  sapply (controls, function( controlType ) {
+    
+    ctrlAddress <- getControlAddress(RGsetEx, controlType = controlType)
+    
+    r[ctrlAddress, ]
+  })}
+
+red <- csp.red(RGset2)
+green <- csp.green(RGset2)
+#selecting only the Bisulfite conversion I values from both green and red
+bsI.green <- green$`BISULFITE CONVERSION I`
+bsI.red <- red$`BISULFITE CONVERSION I`
+#selecting only the Bisulfite conversion II values from both green and red
+bsII.green <- green$`BISULFITE CONVERSION II`
+bsII.red <- red$`BISULFITE CONVERSION II`
+
+BSI.betas <- bsI.red/(bsI.red + bsI.green)
+BSII.betas <- bsII.red/(bsII.red + bsII.green)
+#BSI.betas2 <- apply(BSI.betas,2,mean) #try to find the mean of all the probes as there is a range and this range is different to the type2 probes methylation status
+#Bisulphite <-apply(rbind(BSI.betas2, BSII.betas), 2, median)*100 ## this is the value you are interested in
+
+#use type II as they seem the best proxy
+Bisulphite <- BSII.betas*100
+hist(Bisulphite, xlab = "Median % BS conversion", main = "Histogram of Bisulphite Converstion Statistics")
+
+
+```
+
+Samples with a conversion < 80% fail the QC, so with this threshold `r sum(Bisulphite<80)` samples fail the QC, and will be removed at a later stage.
+
+
+```{r updateQCmetrics2, include=FALSE}
+QCmetrics<-cbind(QCmetrics, Bisulphite)
+SamplesFail[which(Bisulphite<80)]<-TRUE
+Step2<-c(sum(Bisulphite<80, na.rm=T),sum(SamplesFail))
+Stepsummary<-cbind(Stepsummary,Step2)
+bisulphite_fail <- QCmetrics[SamplesFail,]
+```
+
+```{r Stepsummary2}
+print(Stepsummary)
+```
+
+# 4 Sex Check
+
+We can check the sex of the samples by comparing the sex probes intensities.
+
+``` {r, sex probes, echo = FALSE}
+probe_mapping_file <- read_csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/mappabilityData/HorvathMammalChip_SpeciesGenomeCoordsUnique_v1.1.csv", col_types = cols(.default = "c"))
+
+# Set this variable to the column name of your species of interest.
+species_mappability_name = "MusMusculus"
+
+species_probes <- probe_mapping_file[, c('probeID','MusMusculus')]
+species_probes <- species_probes[!is.na(species_probes$MusMusculus),]
+# Set this variable to the column name of your species of interest.
+species_mappability_name = "MusMusculus"
+
+species_probes <- probe_mapping_file[, c('probeID','MusMusculus')]
+species_probes <- species_probes[!is.na(species_probes$MusMusculus),]
+
+# The following minfi function subsets the RGChannelSet to only the probeIDs provided in a list
+RGset_species <- subsetByLoci(RGset2, include=species_probes$probeID)
+
+#filter for sex chromosomes in annotation file
+sex_cpgpositions <- matrix(NA, nrow = 1, ncol = 2)
+colnames(sex_cpgpositions) <- colnames(species_probes)
+species_probes <- as.data.frame(species_probes)
+for( i in 1:nrow(species_probes)){
+  if (substring(species_probes[i,"MusMusculus"],1,1) %in% seq(1,22,1) ){
+    next
+  }  else{
+    sex_cpgpositions <- rbind(species_probes[i,], sex_cpgpositions)
+  } 
+}
+
+#susbet these X chromosomes from the RGset and plot density plot
+RGset_speciessexprobes <- subsetByLoci(RGset_species, include=sex_cpgpositions$probeID)
+```
+
+
+```{r, SexCheck, echo=FALSE}
+#Make a beta for just sex probes so association with sex is stronger when making the pca plot
+
+####
+findGenderPC<-function(betas, sex, npcs = 20){
+
+	betas.com<-betas[complete.cases(betas),]
+	pca<-prcomp(betas.com)
+
+	pca.cor<-rep(NA, npcs)
+	for(i in 1:npcs){
+		pca.cor[i]<-cor(pca$rotation[,i], as.numeric(as.factor(sex)), use = "complete")
+	}
+	top<-order(abs(pca.cor), decreasing = TRUE)[1]
+	second<-order(abs(pca.cor), decreasing = TRUE)[2]
+	print(paste("Top correlated principal components with sex:", top, ",", second))
+
+	predSex<-rep(NA, length(sex))
+	options.sex<-levels(as.factor(sex))
+
+	if(abs(pca.cor[top]) > 0.9){
+		print("Top PC has r > 0.9 with sex so good enough to confirm reported sexes")
+	} else {
+	  print(paste("Top PC has r =", round(abs(pca.cor[top]),2), "with sex so may not be good enough to confirm reported sexes"))
+	}
+
+	if(sign(pca.cor[top]) == 1){
+		predSex[which(pca$rotation[,top] < 0)]<-options.sex[1]
+		predSex[which(pca$rotation[,top] > 0)]<-options.sex[2]
+	} else {
+		predSex[which(pca$rotation[,top] < 0)]<-options.sex[2]
+		predSex[which(pca$rotation[,top] > 0)]<-options.sex[1]
+	}
+
+	plot(pca$rotation[,top], pca$rotation[,second], pch = 16, col = rainbow(3)[as.factor(sex)], xlab = paste("PC", top), ylab = paste("PC", second), main="PC Plot Coloured by Reported Sex")
+	legend("bottomright", levels(as.factor(sex)), pch = 16, col = rainbow(3))
+
+	#using mismatch to add labels to failed samples
+  #mismatch<-which(predSex!=sex)
+  #text(pca$rotation[mismatch,top], pca$rotation[mismatch, second], #labels=colnames(betas)[mismatch], cex=0.7, pos=4)
+
+	return(predSex)
+}
+
+
+betasSexProbes <- as.matrix(getBeta(RGset_speciessexprobes), rownames="CGid")
+ReportedSex<-QCmetrics$Sex #Do not pull put the methylated sexes or else matrix colum length will not match with predsex
+PredictedSex<-findGenderPC(betasSexProbes,ReportedSex)
+
+QCmetrics<-cbind(QCmetrics,PredictedSex)
+QCmetrics$MismatchSex<-PredictedSex!=ReportedSex 
+
+
+```
+
+```{r sex check, echo = FALSE}
+SamplesFail[which(PredictedSex!=ReportedSex)]<-TRUE
+Step3<-c(length(which(PredictedSex!=ReportedSex)),sum(SamplesFail))
+Stepsummary<-cbind(Stepsummary,Step3)
+```
+
+Here `r sum(PredictedSex!=ReportedSex, na.rm=T)` number of sampless predicted sex does not match their reported sex. These samples fail the QC according to the findGenderPC function and, and will be removed.
+
+```{r Stepsummary3}
+print(Stepsummary)
+```
+
+# 5 Tissue Clustering
+
+``` {r clustering, echo = FALSE}
+# One tissue is not predicted as it is labelled
+
+library(lattice)
+library(mclust)
+dat <- t(as.matrix(getBeta(RGset2), rownames="CGid"))
+dat.pca <- prcomp(dat)
+fviz_eig(dat.pca)
+dat.pcax <-dat.pca$x[,1:4]
+dat.em <- mclustBIC(dat)
+splom(as.data.frame(dat.pcax),
+      col=summary(dat.em,data=dat)$classification, cex=2,pch='*')
+
+#remove the classification that does not match Tissue
+#the algorithm to calculate tissue was done by Horvaths group and they used RF
+ind = QCmetrics$Tissue != QCmetrics$predictedTissue
+wrongTissue <- which(is.na(ind) | ind)
+
+```
+
+
+
+```{r tissue check, echo = FALSE}
+SamplesFail[which(QCmetrics$Tissue!=QCmetrics$predictedTissue)]<-TRUE
+Step4<-c(length(which(QCmetrics$Tissue!=QCmetrics$predictedTissue)),sum(SamplesFail))
+Stepsummary<-cbind(Stepsummary,Step4)
+```
+
+Here `r sum(QCmetrics$Tissue!=QCmetrics$predictedTissue), na.rm=T)` number of sampless predicted tissue does not match their reported tissue. These samples fail the QC and will be removed.
+
+```{r Stepsummary4}
+print(Stepsummary)
+```
+
+
+
+# 6 Methylation Distribution
+
+At the moment we have probes for all 192 possible vertebrate species. Density plots of the beta values are plotted for samples with all probes and another plot of samples with specific mouse probes (separated by type I and type II probes). There are `r nrow(as.data.frame(getProbeInfo(RGset2, type="I")))` typeI probes and `r nrow(as.data.frame(getProbeInfo(RGset2, type="II")))` typeII probes.
+
+
+```{r plot betas function, echo=FALSE}
+
+densityPlot(RGset2, main= "All probes")
+
+densityPlot(RGset_species, main= "Probes that map uniquely to mouse genome")
+
+```
+
+
+# 7 Normalisation
+
+For normalisation, samples will be normalised by tissue or cell type. The normalised beta matrix will be combined together as Normalised_Sesame_Betas. We will use the sesame normalisation although dasen will be presented.
+
+```{r filter, echo = FALSE, warning = FALSE, message = FALSE}
+#Manifest file
+project_directory2 <- "MammalianArrayNormalizationTools"
+manifest_file_name_sesame <- paste0(data_directory, project_directory2, "/manifests/HorvathMammal40.CanonicalManifest.3.2019.sesame.csv")
+manifest_sesame <- read_csv(manifest_file_name_sesame, col_types="ciif")
+
+#use this manifest which selects probes specific to mouse
+manifest_sesame_filtered <- manifest_sesame %>% 
+    filter(Probe_ID %in% species_probes$probeID) 
+
+
+#Remove failed samples here
+QCmetrics <- QCmetrics[!SamplesFail,]
+RGset_all <- RGset2[,!SamplesFail] #RGset all probes without controls
+save(RGset_all,QCmetrics, file = "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/AllProbesRaw_QCd.rdat")
+RGset <- RGset_species[,!SamplesFail]
+
+QCmetrics$Basename <- rownames(QCmetrics)
+
+QCmetrics <- QCmetrics %>% 
+  mutate(idats = paste0(data_directory, project_directory, "/idatFiles/", Slide, "/", idat_name))
+
+#seperate the rgset based on tissue and normalise all the idats
+QCmetrics_CE <- QCmetrics[which(QCmetrics$Tissue == "CortexEntorhinalis"),] 
+Sset_CE <- as.data.frame(openSesame(QCmetrics_CE$idats, 'custom', manifest_sesame_filtered, "beta", nondetection.mask = FALSE, quality.mask = FALSE), rownames="CGid")
+RGset_CE <- RGset_species[,QCmetrics_CE$Basename]
+colnames(Sset_CE) <- QCmetrics_CE$Basename
+
+QCmetrics_H <- QCmetrics[which(QCmetrics$Tissue == "Hippocampus"),] 
+Sset_H <- as.data.frame(openSesame(QCmetrics_H$idats, 'custom', manifest_sesame_filtered, "beta", nondetection.mask = FALSE, quality.mask = FALSE), rownames="CGid")
+RGset_H <- RGset_species[,QCmetrics_H$Basename]
+colnames(Sset_H) <- QCmetrics_H$Basename
+
+QCmetrics_NT <- QCmetrics[which(QCmetrics$Tissue == "nuclei_total"),] 
+Sset_NT <- as.data.frame(openSesame(QCmetrics_NT$idats, 'custom', manifest_sesame_filtered, "beta", nondetection.mask = FALSE, quality.mask = FALSE), rownames="CGid")
+RGset_NT <- RGset_species[,QCmetrics_NT$Basename]
+colnames(Sset_NT) <- QCmetrics_NT$Basename
+
+QCmetrics_NN <- QCmetrics[which(QCmetrics$Tissue == "nuclei_neuN_neg"),] 
+Sset_NN <- as.data.frame(openSesame(QCmetrics_NN$idats, 'custom', manifest_sesame_filtered, "beta", nondetection.mask = FALSE, quality.mask = FALSE), rownames="CGid")
+RGset_NN <- RGset_species[,QCmetrics_NN$Basename]
+colnames(Sset_NN) <- QCmetrics_NN$Basename
+
+QCmetrics_NP <- QCmetrics[which(QCmetrics$Tissue == "nuclei_neuN_pos"),] 
+Sset_NP <- as.data.frame(openSesame(QCmetrics_NP$idats, 'custom', manifest_sesame_filtered, "beta", nondetection.mask = FALSE, quality.mask = FALSE), rownames="CGid")
+RGset_NP <- RGset_species[,QCmetrics_NP$Basename]
+colnames(Sset_NP) <- QCmetrics_NP$Basename
+```
+
+```{r Normalisation, echo=FALSE}
+
+plotRGset_density<-function(RGset, study=""){
+  betas <- as.data.frame(getBeta(RGset), rownames="CGid")
+	mat <- betas[,colnames(RGset)] 
+	
+	  plot(density(mat[,1], na.rm=T, bw=0.03), cex.main=0.8, main=paste(study, "Betas"), ylim=c(0, 5.2), xlab="")
+
+    for(j in 2:ncol(mat)){
+		lines(density(mat[,j], na.rm=T, bw=0.03))
+    }
+}
+
+#The more samples in your mset the more messy these plots will look
+plotSesameDensity <- function(Sset, study = ""){
+  mat <- Sset
+  
+  plot(density(mat[,1], na.rm=T, bw=0.03), cex.main=0.8, ylim=c(0, 5.2), xlab="", main=paste(study, "Betas"))
+  
+  for(j in 2:ncol(mat)) {
+    lines(density(mat[,j], na.rm=T, bw=0.03))
+  }
+}
+
+```
+
+```{r, warning = FALSE, message = FALSE, echo = FALSE}
+#dasen normalisation
+library(wateRmelon)
+RGset_CE.dasen <- dasen(RGset_CE) 
+RGset_H.dasen <- dasen(RGset_H)
+RGset_NN.dasen <- dasen(RGset_NN)
+RGset_NT.dasen <- dasen(RGset_NT)
+RGset_NP.dasen <- dasen(RGset_NP)
+
+#Plot to compare
+plotRGset_density(RGset_CE, study="CortexEntorhinalis Samples (pre-normalisation)")
+plotRGset_density(RGset_CE.dasen, study="CortexEntorhinalis Samples (post-normalisation Dasen)")
+plotSesameDensity(Sset_CE, study="CortexEntorhinalis Samples (post-normalisation Sesame)")
+
+plotRGset_density(RGset_H, study="Hippocampus Samples (pre-normalisation)")
+plotRGset_density(RGset_H.dasen, study="Hippocampus Samples (post-normalisation Dasen)")
+plotSesameDensity(Sset_H, study="Hippocampus Samples (post-normalisation Sesame)")
+
+plotRGset_density(RGset_NT, study="Total Nuclei Samples (pre-normalisation)")
+plotRGset_density(RGset_NT.dasen, study="Total Nuclei Samples (post-normalisation Dasen)")
+plotSesameDensity(Sset_NT, study="Total Nuclei Samples (post-normalisation Sesame)")
+
+plotRGset_density(RGset_NP, study="neuN Pos Samples (pre-normalisation)")
+plotRGset_density(RGset_NP.dasen, study="neuN Pos Samples (post-normalisation Dasen)")
+plotSesameDensity(Sset_NP, study="neuN Pos Samples (post-normalisation Sesame)")
+
+plotRGset_density(RGset_NN, study="neuN Neg Samples (pre-normalisation)")
+plotRGset_density(RGset_NN.dasen, study="neuN Neg Samples (post-normalisation Dasen)")
+plotSesameDensity(Sset_NN, study="neuN Neg Samples (post-normalisation Sesame)")
+
+```
+
+```{r summary, echo = FALSE, warning = FALSE, message = FALSE}
+
+Normalised_Sesame_Betas <- cbind(Sset_CE,Sset_H, Sset_NN, Sset_NP, Sset_NT)
+QCmetrics <- rbind(QCmetrics_CE, QCmetrics_H, QCmetrics_NN, QCmetrics_NP, QCmetrics_NT)
+rownames(QCmetrics) <- QCmetrics$Basename
+QCmetrics$Chip_ID <- QCmetrics$Slide
+
+save(QCmetrics, Normalised_Sesame_Betas, file = "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Normalised_Data_Sesame.rdat")#beta matrix map uniquely
+# save(QCmetrics, Normalised_Sesame_Betas, file = "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Normalised_Data_Sesame_2.rdat") #beta matrix map uniquely
+
+
+```
+

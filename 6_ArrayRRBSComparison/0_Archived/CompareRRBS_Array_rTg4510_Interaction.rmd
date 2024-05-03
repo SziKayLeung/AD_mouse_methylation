@@ -1,0 +1,476 @@
+---
+title: "RRBS - Array Comparison for rTg4510 Interaction term"
+author: "Emma Walker"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+setwd("/gpfs/ts0/projects/Research_Project-191406/EmmaW/RRBS_Array_Comparisons/")
+
+#define unique anno function
+uniqueAnno<-function(row){
+if(row != ""){
+	return(paste(unique(unlist(strsplit(row, "\\;"))), collapse = ";"))
+	} else {
+	return(row)
+	}
+}
+```
+
+```{r load libraries, warning=F, message=F, include = F}
+
+library(BiSeq)
+library(readr)
+library(stringr)
+library(dplyr)
+library(gridExtra)
+library(ggplot2)
+library(GenomicRanges)
+library(VennDiagram)
+
+```
+
+## Introduction
+
+Many of the entorhinal cortex samples were ran on both the methylation array and using RRBS technology so can be compared. NB these MAY NOT BE identical samples however.
+
+This script looks at the overlap between sites on the two technologies for the regression results for the rTg4510 ECX Interaction models.
+
+Note that these results are PRE FILTERING.
+
+
+```{r load Array data, warning=F, message=F, echo = F, include = F}
+
+#load in Array result file for results for rTg4510 Genotype only model ECX
+arrayRes <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/Array/Results/rTg4510/With_3000bpTSS_Annotations/MixedModelResultsECX_rTg4510_3000tssAnno.csv", stringsAsFactors = F, row.names = 1)
+
+colnames(arrayRes)[29:33] <- c("ProbeID", "Position", "distanceToTSS", "GeneSymbol", "Genes_3000bp_TSS") # rename columns to match with previous version of file so code below runs properly
+arrayRes$Chr <- str_split(arrayRes$Position, ":", simplify = T)[,1]
+arrayRes$Bp <- str_split(arrayRes$Position, ":", simplify = T)[,2]
+
+# Convert x and y to numbers and remove 'patch' ones
+arrayRes <- arrayRes[!is.na(arrayRes$Position),] # patch ones ("CHR_MG51_PATCH", "CHR_MG4200_PATCH","CHR_MG3699_PATCH")
+arrayRes$Chr <- gsub("X", 20, arrayRes$Chr)
+arrayRes$Chr <- gsub("Y", 21, arrayRes$Chr)
+```
+
+```{r calculate FDR  p vsleresults, warning=F, message=F, echo = F, include = F}
+#signficant results (928)
+arrayRes$FDR_Interaction <- p.adjust(arrayRes[,"PrZ.GenotypeTG.Age_months"], method = "fdr")
+
+arrayResSig <- arrayRes[which(arrayRes$FDR_Interaction <= 0.05),]
+
+```
+
+There are `r nrow(arrayResSig)` signifcant results for the regressions on the array data
+
+
+```{r load RRBS data, warning=F, message=F, echo = F, include = F}
+
+RRBSRes <- read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510/DMPsInteractionModel_stats_table_rTg4510.csv", stringsAsFactors = F)
+
+#################### need to change chr and pos etc
+
+#clean rrbs chr col
+RRBSRes$chr <- str_split(RRBSRes$X, ":", simplify = T)[,1]
+RRBSRes$chr<- gsub(".*chr", "", RRBSRes$chr)
+RRBSRes$chr <- gsub("X", 20, RRBSRes$chr)
+RRBSRes$chr <- gsub("Y", 21, RRBSRes$chr)
+RRBSRes$chr <- as.numeric(as.character(RRBSRes$chr)) # nb this changes ChrM sites to NA
+
+RRBSSig <- RRBSRes[which(RRBSRes$FDR_adj_interaction <= 0.05),]
+
+
+
+```
+
+There are `r nrow(RRBSSig)` signifcant results for the regressions on the RRBS data
+
+
+```{r find identically matched locations , warning=F, message=F, echo = F, include = F}
+
+arrayRes2 <- arrayRes
+RRBSRes2 <- RRBSRes
+
+colnames(arrayRes2) <- paste0("Array_", colnames(arrayRes2))
+colnames(arrayRes2)[30] <- "Position"
+colnames(RRBSRes2) <- paste0("RRBS_", colnames(RRBSRes2))
+colnames(RRBSRes2)[1] <- "Position"
+arrayRes2$Position <- as.character(arrayRes2$Position)
+
+InteractionResults <- merge(arrayRes2, RRBSRes2, by = "Position")
+InteractionResultsSig <- InteractionResults[which(InteractionResults$Array_FDR_Interaction <= 0.05 & InteractionResults$RRBS_FDR_adj_interaction <= 0.05),]
+
+a <- InteractionResults[which(InteractionResults$Array_FDR_Interaction <= 0.05),]
+b <- InteractionResults[which(InteractionResults$RRBS_FDR_adj_interaction <= 0.05),]
+
+```
+
+## Significant locations that have an identical location in the other technology
+
+# Sites that are significant in both technologies
+
+There are `r nrow(InteractionResults)` sites which are in both technologies and `r nrow(InteractionResultsSig)` sites which are significant using both technologies.
+
+
+# Sites that are significant in the array data
+
+There are `r nrow(a)` sites which are significant for the array data and have corresponding locations for the RRBS data. RRBS significance for these `r nrow(a)` sites has been calculated using both bonferroni correction and also FDR adjusted as that is what was used for previous P value adjustments in both the RRBS and array data. There are 2 sites which are also significant in the RRBS data using the bonferonni correction, and 2 sites which are also significant in the RRBS data using the FDR adjustment.
+
+
+```{r Array sig plots, echo=FALSE}
+
+#run sign test
+test <- rep(NA, nrow(a))
+
+for(i in 1:nrow(a)){
+  ifelse(sign(a$Array_Betas.GenotypeTG.Age_months)[i] == sign(a$RRBS_estimate.Interaction)[i], test[i] <- T, test[i] <- F)
+}
+signtest <- binom.test(sum(test == T), length(test), p = 0.5, alternative = "greater")
+
+#calculate how many RRBS sites are bonfp significant
+Array_bonfp <- 0.05/nrow(a)
+a$bonfp_sig <- NA
+for(i in 1:nrow(a)){
+ifelse(a$RRBS_p.val.Interaction[i] < Array_bonfp, a$bonfp_sig[i] <- "Significant", a$bonfp_sig[i] <- "Non Significant")
+}
+
+
+#plot
+ggplot(a, aes(x = Array_Betas.GenotypeTG.Age_months, y = RRBS_estimate.Interaction, colour = bonfp_sig)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  geom_vline(xintercept = 0, linetype = "longdash") +
+  xlab("Array") +
+  ylab("RRBS") +
+  labs(color = "RRBS Significance (Bonf)") +
+  ggtitle(paste0("Bonf corrected rTg4510 ECX - Sig Array Effects:  R = ", signif(cor.test(a$RRBS_estimate.Interaction, a$Array_Betas.GenotypeTG.Age_months)$estimate, 2), ", Sign test P val: ", signif(signtest$p.value, 2)))+
+  theme(plot.title = element_text(size = 8))
+
+
+#calculate how many RRBS sites are fdr significant
+a$fdr_sig <-NA
+a$Array_fdr <- p.adjust(a[,"RRBS_p.val.Interaction"], method = "fdr")
+for(i in 1:nrow(a)){
+ifelse(a$Array_fdr[i] < 0.05, a$fdr_sig[i] <- "Significant", a$fdr_sig[i] <- "Non Significant")
+}
+
+
+#plot
+ggplot(a, aes(x = Array_Betas.GenotypeTG.Age_months, y = RRBS_estimate.Interaction, colour = fdr_sig)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  geom_vline(xintercept = 0, linetype = "longdash") +
+  xlab("Array") +
+  ylab("RRBS") +
+  labs(color = "RRBS Significance (FDR)") +
+  ggtitle(paste0("FDR adj rTg4510 ECX - Sig Array Effects:  R = ", signif(cor.test(a$RRBS_estimate.Interaction, a$Array_Betas.GenotypeTG.Age_months)$estimate, 2), ", Sign test P val: ", signif(signtest$p.value, 2)))+
+    theme(plot.title = element_text(size = 8))
+
+
+```
+
+# Sites that are significant in the RRBS data
+
+There are `r nrow(b)` sites which are significant for the RRBS data and have corresponding locations for the array data.
+The correspondng site in the array data is not nominally significant (0.729). The effect size is negative using both technologies.
+
+
+
+## Significant array sites and RRBS sites +/-100bp
+
+
+```{r Array 100bp overlap GRanges, echo=FALSE}
+
+# turn array results into a GRranges object
+#arrayGranges <- GRanges(arrayRes$Position)
+
+# turn RRBS results into GRanges object
+RRBSGRanges <- GRanges(RRBSRes$X)
+
+# create GRanges object of sig array sites + 100bp
+arrayGrangesSig <- GRanges(paste0(str_split(arrayResSig$Position, ":", simplify = T)[,1], ":", as.numeric(str_split(arrayResSig$Position, ":", simplify = T)[,2])-100, "-", as.numeric(str_split(arrayResSig$Position, ":", simplify = T)[,2])+100))
+
+# look for overlaps
+arraySigolap <- findOverlaps(RRBSGRanges, arrayGrangesSig)
+#1041 hits
+
+# subset RRBS dataset to just contian sites +/-100bp of a significant array site
+RRBSmatchedSites <- as.data.frame(arraySigolap)[,1]
+RRBSMatchedSigArray <- RRBSRes[RRBSmatchedSites,]
+
+# Match array sites so have dfs of the sme length
+ArrayMatchedsites <- as.data.frame(arraySigolap)[,2]
+ArrayMatched <- arrayResSig[ArrayMatchedsites,]
+
+
+# add in col for position in array it matched to
+RRBS_bp <- as.numeric(str_split(RRBSMatchedSigArray$X, ":", simplify = T)[,2])
+plotdf <- as.data.frame(cbind(ArrayMatched$Position, ArrayMatched$Bp, ArrayMatched$Betas.GenotypeTG.Age_months, ArrayMatched$PrZ.GenotypeTG.Age_months, 
+                RRBSMatchedSigArray$X, RRBS_bp, RRBSMatchedSigArray$estimate.Interaction, RRBSMatchedSigArray$p.val.Interaction), stringsAsFactors = FALSE)
+colnames(plotdf) <- c("Array_Position", "Array_BP", "Array_Betas.Interaction", "Array_PrZ.Interaction",
+                      "RRBS_Position", "RRBS_BP", "RRBS_estimate.Interaction","RRBS_p.val.Interaction")
+
+#convert cols to be right data type
+plotdf$Array_BP <- as.numeric(plotdf$Array_BP)
+plotdf$Array_Betas.Interaction <- as.numeric(plotdf$Array_Betas.Interaction)
+plotdf$Array_PrZ.Interaction <- as.numeric(plotdf$Array_PrZ.Interaction)
+plotdf$RRBS_BP <- as.numeric(plotdf$RRBS_BP)
+plotdf$RRBS_estimate.Interaction <- as.numeric(plotdf$RRBS_estimate.Interaction)
+plotdf$RRBS_p.val.Interaction <- as.numeric(plotdf$RRBS_p.val.Interaction)
+
+
+
+#add in col calculating distance between array site and RRBS site
+plotdf$distance <- rep(NA)
+for(i in 1:length(plotdf$distance)){
+  plotdf$distance[i] <- plotdf$Array_BP[i] - plotdf$RRBS_BP[i]
+}
+
+#range(plotdf$distance)
+#[1] -100  100
+
+
+```
+
+
+```{r 100bp with sig array overlap plots, echo=FALSE}
+ #calculate RRBS FDR NOTE::::: is this right bearing in mind that some of the repeated measures (Array) are duplicates?
+#run sign test
+test <- rep(NA, nrow(plotdf))
+
+for(i in 1:nrow(plotdf)){
+  ifelse(sign(plotdf$RRBS_estimate.Interaction)[i] == sign(plotdf$Array_Betas.Interaction)[i], test[i] <- T, test[i] <- F)
+}
+signtest <- binom.test(sum(test == T), length(test), p = 0.5, alternative = "greater")
+
+
+#calculate how many RRBS sites are bonfp significant
+Array_bonfp <- 0.05/nrow(plotdf)
+plotdf$bonfp_sig <- NA
+for(i in 1:nrow(plotdf)){
+ifelse(plotdf$RRBS_p.val.Interaction[i] < Array_bonfp, plotdf$bonfp_sig[i] <- "Significant", plotdf$bonfp_sig[i] <- "Non Significant")
+}
+
+
+#plot
+ggplot(plotdf, aes(x = Array_Betas.Interaction, y = RRBS_estimate.Interaction, colour = bonfp_sig)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  geom_vline(xintercept = 0, linetype = "longdash") +
+  xlab("Array") +
+  ylab("RRBS") +
+  labs(color = "RRBS Significance (Bonferroni)") +
+  ggtitle(paste0("Bonf corrected rTg4510 ECX - Sig Array Effects vs RRBS sites +/- 100bp:  R = ", signif(cor.test(plotdf$RRBS_estimate.Interaction, plotdf$Array_Betas.Interaction)$estimate, 2), ", Sign test P val: ", signif(signtest$p.value, 2)))+
+  theme(plot.title = element_text(size = 8))
+
+
+#calculate how many RRBS sites are fdr significant
+plotdf$fdr_sig <-NA
+plotdf$Array_fdr <- p.adjust(plotdf[,"RRBS_p.val.Interaction"], method = "fdr")
+for(i in 1:nrow(plotdf)){
+ifelse(plotdf$Array_fdr[i] < 0.05, plotdf$fdr_sig[i] <- "Significant", plotdf$fdr_sig[i] <- "Non Significant")
+}
+
+
+#plot
+ggplot(plotdf, aes(x = Array_Betas.Interaction, y = RRBS_estimate.Interaction, colour = fdr_sig)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  geom_vline(xintercept = 0, linetype = "longdash") +
+  xlab("Array") +
+  ylab("RRBS") +
+  labs(color = "RRBS Significance (FDR)") +
+  ggtitle(paste0("FDR adj rTg4510 ECX - Sig Array Effects vs RRBS sites +/- 100bp:  R = ", signif(cor.test(plotdf$RRBS_estimate.Interaction, plotdf$Array_Betas.Interaction)$estimate, 2), ", Sign test P val: ", signif(signtest$p.value, 2)))+
+    theme(plot.title = element_text(size = 8))
+
+
+
+```
+
+
+There are `r length(unique(plotdf$Array_Position))` significant DMPSs on the array which have a RRBS postion within +/-100bp (`r length(unique(plotdf$RRBS_Position))` unique RRBS locations) totalling `r nrow(plotdf)` site pairs.
+
+
+
+## Significant RRBS sites and array sites +/-100bp
+
+
+```{r RRBS 100bp overlap GRanges, echo=FALSE}
+
+# turn array results into a GRranges object
+arrayGranges <- GRanges(arrayRes$Position)
+
+# turn RRBS results into GRanges object
+#RRBSGRanges <- GRanges(RRBSRes$X)
+
+# create GRanges object of sig RRBS sites + 100bp
+RRBSGrangesSig <- GRanges(paste0(str_split(RRBSSig$X, ":", simplify = T)[,1], ":", as.numeric(str_split(RRBSSig$X, ":", simplify = T)[,2])-100, "-", as.numeric(str_split(RRBSSig$X, ":", simplify = T)[,2])+100))
+
+# look for overlaps
+RRBSSigolap <- findOverlaps(arrayGranges, RRBSGrangesSig)
+#61 hits
+
+# subset array dataset to just contian sites +/-100bp of a significant RRBS site
+ArraymatchedSites <- as.data.frame(RRBSSigolap)[,1]
+ArrayMatchedSigRRBS <- arrayRes[ArraymatchedSites,]
+
+# Match array sites so have dfs of the sme length
+RRBSMatchedsites <- as.data.frame(RRBSSigolap)[,2]
+RRBSMatched <- RRBSSig[RRBSMatchedsites,]
+
+
+# add in col for position in array it matched to
+RRBS_bp <- as.numeric(str_split(RRBSMatched$X, ":", simplify = T)[,2])
+plotdf <- as.data.frame(cbind(RRBSMatched$X, RRBS_bp, RRBSMatched$estimate.Interaction, RRBSMatched$p.val.Interaction, 
+                ArrayMatchedSigRRBS$Position, ArrayMatchedSigRRBS$Bp, ArrayMatchedSigRRBS$Betas.GenotypeTG.Age_months, ArrayMatchedSigRRBS$PrZ.GenotypeTG.Age_months), stringsAsFactors = FALSE)
+
+colnames(plotdf) <- c("RRBS_Position", "RRBS_BP", "RRBS_estimate.Interaction","RRBS_p.val.Interaction",
+                      "Array_Position", "Array_BP", "Array_Betas.Interaction", "Array_PrZ.Interaction")
+
+#convert cols to be right data type
+plotdf$Array_BP <- as.numeric(plotdf$Array_BP)
+plotdf$Array_Betas.Interaction <- as.numeric(plotdf$Array_Betas.Interaction)
+plotdf$Array_PrZ.Interaction <- as.numeric(plotdf$Array_PrZ.Interaction)
+plotdf$RRBS_BP <- as.numeric(plotdf$RRBS_BP)
+plotdf$RRBS_estimate.Interaction <- as.numeric(plotdf$RRBS_estimate.Interaction)
+plotdf$RRBS_p.val.Interaction <- as.numeric(plotdf$RRBS_p.val.Interaction)
+
+
+
+#add in col calculating distance between array site and RRBS site
+plotdf$distance <- rep(NA)
+for(i in 1:length(plotdf$distance)){
+  plotdf$distance[i] <- plotdf$Array_BP[i] - plotdf$RRBS_BP[i]
+}
+
+#range(plotdf$distance)
+#[1] -95  99
+
+
+```
+
+
+```{r 100bp with sig RRBS overlap plots, echo=FALSE}
+ #calculate array FDR NOTE::::: is this right bearing in mind that some of the repeated measures (Array) are duplicates?
+#run sign test
+test <- rep(NA, nrow(plotdf))
+
+for(i in 1:nrow(plotdf)){
+  ifelse(sign(plotdf$RRBS_estimate.Interaction)[i] == sign(plotdf$Array_Betas.Interaction)[i], test[i] <- T, test[i] <- F)
+}
+signtest <- binom.test(sum(test == T), length(test), p = 0.5, alternative = "greater")
+
+
+#calculate how many RRBS sites are bonfp significant
+RRBS_bonfp <- 0.05/nrow(plotdf)
+plotdf$bonfp_sig <- NA
+for(i in 1:nrow(plotdf)){
+ifelse(plotdf$Array_PrZ.Interaction[i] < RRBS_bonfp, plotdf$bonfp_sig[i] <- "Significant", plotdf$bonfp_sig[i] <- "Non Significant")
+}
+
+
+#plot
+ggplot(plotdf, aes(x = RRBS_estimate.Interaction, y = Array_Betas.Interaction, colour = bonfp_sig)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  geom_vline(xintercept = 0, linetype = "longdash") +
+  xlab("Array") +
+  ylab("RRBS") +
+  labs(color = "Array Significance (Bonferroni)") +
+  ggtitle(paste0("Bonf corrected rTg4510 ECX - Sig RRBS Effects vs Array sites +/- 100bp:  R = ", signif(cor.test(plotdf$RRBS_estimate.Interaction, plotdf$Array_Betas.Interaction)$estimate, 2), ", Sign test P val: ", signif(signtest$p.value, 2)))+
+  theme(plot.title = element_text(size = 8))
+
+
+#calculate how many array sites are fdr significant
+plotdf$fdr_sig <-NA
+plotdf$Array_fdr <- p.adjust(plotdf[,"Array_PrZ.Interaction"], method = "fdr")
+for(i in 1:nrow(plotdf)){
+ifelse(plotdf$Array_fdr[i] < 0.05, plotdf$fdr_sig[i] <- "Significant", plotdf$fdr_sig[i] <- "Non Significant")
+}
+
+
+#plot
+ggplot(plotdf, aes(x = RRBS_estimate.Interaction, y = Array_Betas.Interaction, colour = fdr_sig)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "longdash") +
+  geom_vline(xintercept = 0, linetype = "longdash") +
+  xlab("Array") +
+  ylab("RRBS") +
+  labs(color = "Array Significance (FDR)") +
+  ggtitle(paste0("FDR adj rTg4510 ECX - Sig Array Effects vs RRBS sites +/- 100bp:  R = ", signif(cor.test(plotdf$RRBS_estimate.Interaction, plotdf$Array_Betas.Interaction)$estimate, 2), ", Sign test P val: ", signif(signtest$p.value, 2)))+
+    theme(plot.title = element_text(size = 8))
+
+
+
+```
+
+
+There are `r length(unique(plotdf$RRBS_Position))` significant DMPSs from the RRBS data which have an Array postion within +/-100bp (`r length(unique(plotdf$Array_Position))` unique array locations) totalling `r nrow(plotdf)` site pairs.
+
+
+
+
+
+## There are no rTg4510 Interaction DMRs tp use for comparison
+
+
+
+```{r find overlapping genes between array and RRBS , warning=F, message=F, echo = F, include = F}
+
+#read in annotated RRBS Interaction file
+RRBSanno <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/Annotated/rTg4510/DMPs/With_3000bpTSS_Annotations/DMPsInteractionModel_rTg4510_sig_interaction_3000tssAnno.csv", stringsAsFactors = F, row.names = 1)
+
+
+#Create list of RRBS chipseeker annotated genes
+## reduce gene annotation to unique genes
+RRBSanno[which(is.na(RRBSanno$Genes_3000bp_TSS)), "Genes_3000bp_TSS"] <- "" # change NA's to ""
+RRBS_chip_genes <- unlist(lapply(RRBSanno$Genes_3000bp_TSS, uniqueAnno))
+## exclude sites with no gene anno
+RRBS_chip_genes <-RRBS_chip_genes[-c(which(RRBS_chip_genes == ""))]
+# create list of genes
+RRBS_chip_genes <-unique(unlist(strsplit(RRBS_chip_genes, "\\;")))
+
+
+#Create list of array genes
+## reduce gene annotation to unique genes
+#read in file
+arrayPathSig <- read.csv("/gpfs/ts0/projects/Research_Project-191406/EmmaW/Array/Results/rTg4510/SigResults/With_3000bpTSS_Annotations/rTg4510_MME_ECX_AgeGenotypeInteraction_3000tssAnno.csv", stringsAsFactors = F)
+
+arrayPathSig[which(is.na(arrayPathSig$Genes_3000bp_TSS)), "Genes_3000bp_TSS"] <- "" # change NA's to ""
+array_genes <- unlist(lapply(arrayPathSig$Genes_3000bp_TSS, uniqueAnno))
+## exclude sites with no gene anno
+array_genes <- array_genes[-c(which(array_genes == ""))]
+# create list of genes
+array_genes <-unique(unlist(strsplit(array_genes, "\\;")))
+
+
+# find how many genes are in both
+RRBS_array_overlap <- intersect(array_genes, RRBS_chip_genes) #5
+
+```
+
+## Gene level overlaps between the two technologies
+
+There are `r length(RRBS_array_overlap)` unique genes which contain at least one significant site/cpg from both the RRBS and array data.
+
+```{r vennDiagram, echo=FALSE, include=FALSE}
+  
+myCol <- c("azure2", "bisque1")
+
+venn.diagram(
+  x = list(array_genes, RRBS_chip_genes),
+  category.names = c("Array genes", "RRBS genes"), imagetype = "png",
+  filename = "RRBS_array_vennDiagaram_interaction.png", main = "RRBS / Array Gene Overlap for rTg4510 Interaction", fil = myCol, cat.default.pos= "text"
+  )
+
+```
+
+<center>
+
+![](RRBS_array_vennDiagaram_interaction.png){width=50%}
+
+
+

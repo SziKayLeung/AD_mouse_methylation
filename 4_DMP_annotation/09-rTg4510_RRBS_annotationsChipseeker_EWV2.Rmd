@@ -1,0 +1,177 @@
+---
+title: "RRBS - BiSeq rTg4510 Annotations Chipseeker"
+author: "Isabel Castanho (I.S.Castanho@exeter.ac.uk)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load packages, message = FALSE, warning = FALSE}
+library(ggplot2)
+#library(tidyverse)
+library(stringr)
+library(gridExtra)
+# library(minfi)
+
+```
+
+NOTE: this document was updated 29/04/2022 so that the scripts uses the same annotation parameters as used in the 05b RRBS annotation scripts.
+
+NOTE: it has only been changed from line 77!
+  
+# Distribution of tested sites
+Mouse reference genome used is GRCm38.84 (Ensemble version 84, which was done on GRCm38.p4; mm10 genome)
+  
+```{r load data, message = FALSE, warning = FALSE}
+# get data
+stats <- read.csv(file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/J20/DMPsPathology_stats_table_J20.csv", row.names=1)
+colnames(stats)[1] <- "Location"
+stats$chr <- sapply(1:nrow(stats), function(j) str_extract(stats$Location[j], "chr[^:]*"))
+stats$chr <- substring(stats$chr, 4)
+
+# count sites in each chromosome
+MouseChr <- as.data.frame(table(stats$chr))
+MouseChr2 <- MouseChr[c(1:19, 21:22),]
+MouseChr2$Var1 <- as.character(MouseChr2$Var1)
+
+chroder <- c('1', '2',  '3',  '4',  '5',  '6',  '7',  '8',  '9', 
+             '10', '11','12', '13', '14', '15', '16', '17', '18', '19', "X", "Y")
+
+MouseChr2$Var1 <- factor(MouseChr2$Var1, levels = chroder)
+```
+
+```{r fig1, fig.cap = "Figure 1:  Summary of the distribution of CpGs across the mouse genome"}
+ggplot(MouseChr2, aes(MouseChr2$Var1, MouseChr2$Freq))+
+  geom_bar(stat = "identity") +
+  labs(x = "Chromosome", y = "Number of sites") +
+  theme_classic()
+```
+  
+  
+  
+# Gene Annotation
+We can check the genes where the CpGs lie on by using the Rpackage TxDb.Mmusculus.UCSC.mm10.knownGene.  
+The Ensembl ID will be used to annotate the cpg which lie in trancripts and genes.  
+
+  
+```{r}
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(ggupset)
+library(tidyverse)
+library(ggimage)
+
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+```
+
+```{r}
+
+#make plots from here: http://bioconductor.org/packages/devel/bioc/vignettes/ChIPseeker/inst/doc/ChIPseeker.html#average-profiles
+
+#create list of DMR results files to load in
+# read in file locations
+temp <- list.files("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMRs/rTg4510", full.names = T, pattern = ".csv")
+temp2 <- gsub('.{4}$', '', list.files("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMRs/rTg4510/", pattern = ".csv"))
+
+#remove empty interaction file as it causes issues in the loop
+temp <- temp[-2]
+temp2 <- temp2[-2]
+
+#set working directory to where plots are to be saved
+setwd("/lustre/projects/Research_Project-191406/EmmaW/ChipSeekerPlots/rTg4510/DMRs/")
+
+#loop through the results files to create pie, bar and aggregate (upsetplot()) plots
+for(i in 1:length(temp)){
+
+  # create GRanges object
+  File <- read.csv(temp[i])
+
+  # add columns to csv files for chromosome, location, min location and max location
+  File$seqnames <- gsub("M", "MT", File$seqnames)
+  File$location <-paste0(File$seqnames, ":", File$start, "-", File$end)
+
+  seg <- GRanges(File$location)
+  
+  #add in feature info (promoter etc.) from chipseeker package
+  peakAnno <- annotatePeak(seg,tssRegion = c(-1500, 1500),TxDb = txdb,level = "transcript",assignGenomicAnnotation = TRUE,genomicAnnotationPriority = c("Promoter", "5UTR", "3UTR", "Exon", "Intron","Downstream", "Intergenic"),annoDb = "org.Mm.eg.db",addFlankGeneInfo = FALSE,flankDistance = 5000,sameStrand = FALSE,ignoreOverlap = FALSE,ignoreUpstream = FALSE,ignoreDownstream = FALSE,overlap = "TSS",verbose = TRUE)
+
+
+#pie chart
+pdf(paste0("rTg4510AnnoPie_", temp2[i], ".pdf"))
+pie <- plotAnnoPie(peakAnno)
+print(pie)
+dev.off()
+
+#bar chart
+pdf(paste0("rTg4510AnnoBar_", temp2[i], ".pdf"))
+bar <- plotAnnoBar(peakAnno)
+print(bar)
+dev.off()
+
+# aggregated plot
+pdf(paste0("rTg4510AggrPlot_", temp2[i], ".pdf"))
+aggr <- upsetplot(peakAnno, vennpie=TRUE)
+print(aggr)
+dev.off()
+
+}
+
+
+```
+
+```{r}
+
+#Same as above but for DMPs rather than DMRs
+
+#sew working directory to where plots want to be saved
+setwd("/gpfs/ts0/projects/Research_Project-191406/EmmaW/ChipSeekerPlots/rTg4510/DMPs/")
+
+#create list of results to loop through
+temp <- list.files("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510/", full.names = T)
+temp2 <- gsub('.{4}$', '', list.files("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510/", pattern = ".csv"))
+
+# loop through results files to create pie, bar and aggregate (upset()) plots
+for(i in 1:length(temp)){
+
+  # create GRanges object
+  File <- read.csv(temp[i])
+  File$location <- File$X
+  
+  
+  seg <- GRanges(File$location)
+  
+  #add in feature info (promoter etc.) from chipseeker package
+  peakAnno <- annotatePeak(seg,tssRegion = c(-1500, 1500),TxDb = txdb,level = "transcript",assignGenomicAnnotation = TRUE,genomicAnnotationPriority = c("Promoter", "5UTR", "3UTR", "Exon", "Intron","Downstream", "Intergenic"),annoDb = "org.Mm.eg.db",addFlankGeneInfo = FALSE,flankDistance = 5000,sameStrand = FALSE,ignoreOverlap = FALSE,ignoreUpstream = FALSE,ignoreDownstream = FALSE,overlap = "TSS",verbose = TRUE)
+  
+
+#pie chart
+pdf(paste0("rTg4510AnnoPie_", temp2[i], ".pdf"))
+pie <- plotAnnoPie(peakAnno)
+print(pie)
+dev.off()
+
+#bar chart
+pdf(paste0("Tg4510AnnoBar_", temp2[i], ".pdf"))
+bar <- plotAnnoBar(peakAnno)
+print(bar)
+dev.off()
+
+# aggregate plots
+pdf(paste0("Tg4510AggrPlot_", temp2[i], ".pdf"))
+aggr <- upsetplot(peakAnno, vennpie=TRUE)
+print(aggr)
+dev.off()
+
+}
+
+```
