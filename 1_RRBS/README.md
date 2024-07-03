@@ -11,7 +11,7 @@ Bismark alignment using Bowtie2 and methylation extraction. Reference paths etc 
 - raw RRBS: ```0_ZenOutput/1_processed/rrbs/biseq_raw_<model>.RData```  
 - smoothed RRBS: ```0_ZenOutput/1_processed/rrbs/<model>_RRBS_SmoothBetas.RData```
 
-### 3. Differential methylation position analysis using BiSeq regression 
+## 3. Differential methylation position analysis using BiSeq regression 
 > [!TIP]
 > to run by submitting bash script that runs r script (genotype, pathology)
 
