@@ -16,7 +16,7 @@ suppressMessages(library(dplyr))
 
 # directory input
 rootDir = "/lustre/projects/Research_Project-191406"
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/"
+scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
 
 source(paste0(scriptDir, "import.config"))
 # source functions to run script

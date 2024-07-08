@@ -14,7 +14,7 @@ message("Using cores: ", parallel::detectCores())
 #BiocManager::install("BiSeq")
 suppressMessages(library("BiSeq"))
 suppressMessages(library("stringr"))
-source("/lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/import.config")
+source("/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/import.config")
 
 ## --------------- parameters -------------------- 
 model = "J20"

@@ -12,4 +12,4 @@
 #SBATCH --error=../output/3_run_DMP_J20.e
 
 module load R/4.2.2-foss-2022b
-Rscript /lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/1_RRBS/J20/3a_source_DMP_Genotype.R
+Rscript /lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/1_RRBS/J20/3a_source_DMP_Genotype.R

@@ -16,7 +16,7 @@ suppressMessages(library(dplyr))
 ## ---------- input data -----------------
 
 message("import files")
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/"
+scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
 source(paste0(scriptDir, "import.config"))
 source(paste0(scriptDir, "1_RRBS/functions/BetaRegressionDMPs.R"))
 

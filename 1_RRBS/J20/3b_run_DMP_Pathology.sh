@@ -12,5 +12,5 @@
 #SBATCH --error=../output/3_run_DMP_Pathology.e
 
 module load R/4.2.2-foss-2022b
-scriptDir=/lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/1_RRBS/J20/
+scriptDir=/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/1_RRBS/J20/
 Rscript ${scriptDir}/3b_source_DMP_Pathology.R
