@@ -135,6 +135,36 @@ MergeArrayRRBSSigResults <- function(rrbsBeta, arrayBeta, rrbsSigResults, arrayS
 }
 
 
+sigArrayResults <- function(arrayBeta, arraySigResults, phenotypeInput){
+  cols2Keep <- c("meanWT", "meanTG", "delta", "directionTG", "ChIPseeker_GeneEnsembl","ChIPseeker_GeneSymbol", "ChIPseeker_GeneName","ChIPseeker_Annotation","ChIPseeker_TransEnsembl","distanceToTSS")
+  
+  delta <- list(
+    Genotype = extract_delta(betaMatrix = arrayBeta, sigMatrix = arraySigResults[["Genotype"]], phenotypeFile = phenotypeInput),
+    GenotypeAge = extract_delta(betaMatrix = arrayBeta, sigMatrix = arraySigResults[["Interaction"]], phenotypeFile = phenotypeInput),
+    Pathology = extract_delta(betaMatrix = arrayBeta, sigMatrix = arraySigResults[["Pathology"]], phenotypeFile = phenotypeInput)
+  )
+  
+  sigRes <- list(
+    Genotype = mergeSigResults("Genotype", arraySigResults[["Genotype"]], "Array", delta$Genotype, "PrZ.GenotypeTG", "FDR_adj_Genotype", cols2Keep),
+    GenotypeAge = mergeSigResults("GenotypeAge", arraySigResults[["Interaction"]], "Array", delta$GenotypeAge, "PrZ.GenotypeTG.Age_months", "FDR_adj_GenotypeAge", cols2Keep),
+    Pathology = mergeSigResults("Pathology", arraySigResults[["Pathology"]], "Array", delta$Pathology, "PrZ.Pathology", "FDR_adj_Pathology", cols2Keep)
+  )
+  
+  
+  sigRes$Pathology <- sigRes$Pathology %>% dplyr::mutate(
+    GenotypeEffect = ifelse(Position %in% sigRes$Genotype$Position,TRUE,FALSE),
+    InteractionEffect = ifelse(Position %in% sigRes$GenotypeAge$Position,TRUE,FALSE)
+  )
+  
+  # remove duplicated array probes, taking the most significant probe as representative
+  sigRes$Genotype <- sigRes$Genotype  %>% group_by(Position) %>% dplyr::slice(which.min(FDR_adj_Genotype))
+  sigRes$GenotypeAge <- sigRes$GenotypeAge %>% group_by(Position) %>% dplyr::slice(which.min(FDR_adj_GenotypeAge))
+  sigRes$Pathology <- sigRes$Pathology %>% group_by(Position) %>% dplyr::slice(which.min(FDR_adj_Pathology))
+  
+  sigRes <- lapply(sigRes, function(x) as.data.frame(x))
+  return(sigRes)
+}
+
 plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, pathology = FALSE){
   
   color_Tg4510_TG <- "#00AEC9"
@@ -228,4 +258,15 @@ plot_platform_commonProbes <- function(rrbsBeta, arrayBeta, SigResults, phenotyp
     mytheme + labs(x = "Array - delta", y = "RRBS - delta")
   
   return(p)
+}
+
+
+datawrangle_tissue_array <- function(res){
+  res <- res %>% mutate(Platform = "Array") %>% 
+    dplyr::select(Platform, position, cpg, PrZ.Tissue, PrZ.Tissue.GenotypeTG, FDR_adj_TissueGenotype,
+                  ChIPseeker_GeneEnsembl, ChIPseeker_GeneSymbol, ChIPseeker_GeneName, ChIPseeker_Annotation, ChIPseeker_TransEnsembl, distanceToTSS) %>% 
+    dplyr::rename("Position" = "position", "P.value_Tissue" = "PrZ.Tissue", "P.value_TissueGenotype" = "PrZ.Tissue.GenotypeTG") %>% 
+    arrange(FDR_adj_TissueGenotype)
+  
+  return(res)
 }

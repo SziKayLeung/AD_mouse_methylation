@@ -27,7 +27,7 @@ pheno <- QCmetrics
 betas <- Normalised_Sesame_Betas
 
 # ECX
-pheno_ecx <- pheno[which(pheno$Tissue %in% "CortexEntorhinalis"),] %>% mutate(sample_ID = word(ExternalSampleID, c(2),sep=fixed("_")))
+pheno_ecx <- pheno[which(pheno$Tissue %in% "CortexEntorhinalis"),] %>% mutate(sample_ID = word(ExternalSampleID, c(2),sep=stringr::fixed("_")))
 betas_ecx <- betas[, colnames(betas) %in% pheno_ecx$Basename] 
 
 # rTg4510
@@ -45,3 +45,26 @@ colnames(betas_ecx_J20) <- unlist(lapply(colnames(betas_ecx_J20), function(x) ph
 betas_ecx_J20 <- merge(betas_ecx_J20, mm10_Manifest, by = 0, all.x = T)
 colnames(betas_ecx_J20)[1] <- "cpg"
 save(betas_ecx_J20, file = paste0(dirnames$processed, "/array/Normalised_J20_array_ECX.RData"))
+
+
+## ----------------------------- HIP
+
+pheno_hip <- pheno[which(pheno$Tissue %in% "Hippocampus"),] %>% mutate(sample_ID = word(ExternalSampleID, c(2),sep=stringr::fixed("_")))
+betas_hip <- betas[, colnames(betas) %in% pheno_hip$Basename] 
+
+# rTg4510
+pheno_hip_Tg4510 <- pheno_hip[which(pheno_hip$AD_model %in% "rTg4510"),] 
+betas_hip_rTg4510  <- betas_hip[, colnames(betas_hip) %in% pheno_hip_Tg4510$Basename] 
+colnames(betas_hip_rTg4510) <- unlist(lapply(colnames(betas_hip_rTg4510), function(x) pheno_hip[pheno_hip$Basename == x, "sample_ID"]))
+betas_hip_rTg4510 <- merge(betas_hip_rTg4510, mm10_Manifest, by = 0, all.x = T)
+colnames(betas_hip_rTg4510)[1] <- "cpg"
+save(betas_hip_rTg4510, file = paste0(dirnames$processed, "/array/Normalised_rTg4510_array_HIP.RData"))
+
+# J20 
+pheno_hip_J20 <- pheno_hip[which(pheno_hip$AD_model %in% "J20"),] 
+betas_hip_J20 <- betas_hip[, colnames(betas_hip) %in% pheno_hip_J20$Basename] 
+colnames(betas_hip_J20) <- unlist(lapply(colnames(betas_hip_J20), function(x) pheno_hip[pheno_hip$Basename == x, "sample_ID"]))
+betas_hip_J20 <- merge(betas_hip_J20, mm10_Manifest, by = 0, all.x = T)
+colnames(betas_hip_J20)[1] <- "cpg"
+save(betas_hip_J20, file = paste0(dirnames$processed, "/array/Normalised_J20_array_HIP.RData"))
+
