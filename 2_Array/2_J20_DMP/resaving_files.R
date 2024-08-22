@@ -1,6 +1,6 @@
 
 scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
-source(paste0(scriptDir, "2_Array/import.config"))
+source(paste0(scriptDir, "import.config"))
 source(paste0(scriptDir, "2_Array/functions/finalise_betaRegressionArray.R"))
 
 # save as Rdata

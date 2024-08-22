@@ -28,6 +28,11 @@ suppressMessages(library("grid"))
 
 ## ------------ input ------------
 
+rootDir = "/lustre/projects/Research_Project-191406"
+scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
+source(paste0(scriptDir, "import.config"))
+
+
 # directory paths
 dirnames <- list(
   biseq = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/",
@@ -116,9 +121,8 @@ ggtranscript_plot <- function(gexons, intron=TRUE){
 
 ## ------------ p1: heatmap ------------
 
-source("/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/0_PaperFigs/compGenesSim_txtFiles.R")
-outputHumanListDir <- "/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/7_HumanGeneListComparisons/inputLists/output/"
-p1 <- compGenes(outputHumanListDir)
+source("/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/0_PaperFigs/compGenesSim_txtFiles.R")
+p1 <- compGenes(dirnames$humanAnnot)
 
 
 ## ------------ p2: genotype ------------
