@@ -18,36 +18,35 @@ label_colour <- function(var){
 # Output: 
   # mixedEffectsResults = merged df of probe annotation and additional FDR columns
 
-PrepMixedEffectsStats <- function(mixedEffectsResults,manifest,test){
+PrepMixedEffectsStats <- function(mixedEffectsResults,manifest,test,threshold=0.05){
   
+  manifest <- manifest %>% tibble::rownames_to_column(., var = "cpg")
   mixedEffectsResults <- merge(manifest, mixedEffectsResults, by.x = "cpg", by.y = "X")
-  mixedEffectsResults <-mixedEffectsResults %>% mutate(Position = paste0(seqnames,":",start))
-  
   
   if(test == "Tissue.Genotype"){
     mixedEffectsResults$FDR_adj_TissueGenotype <- p.adjust(mixedEffectsResults[,"PrZ.Tissue.GenotypeTG"], method = "fdr")
     mixedEffectsResults <-mixedEffectsResults[order(mixedEffectsResults$PrZ.Tissue.GenotypeTG),]
     
-    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_TissueGenotype < 0.05),]
+    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_TissueGenotype < threshold),]
     cat("Number of significant sites in Tissue*Genotype", nrow(mixedEffectsResults), "\n") 
     
   }else if(test == "Geno.Age"){
     mixedEffectsResults$FDR_adj_GenotypeAge <- p.adjust(mixedEffectsResults[,"PrZ.GenotypeTG.Age_months"], method = "fdr")
     mixedEffectsResults$FDR_adj_Genotype <- p.adjust(mixedEffectsResults[,"PrZ.GenotypeTG"], method = "fdr")
     
-    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_GenotypeAge < 0.05),]
+    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_GenotypeAge < threshold),]
     cat("Number of significant sites in Age*Genotype", nrow(mixedEffectsResults), "\n") 
   
   }else if(test == "Geno"){
     mixedEffectsResults$FDR_adj_GenotypeAge <- p.adjust(mixedEffectsResults[,"PrZ.GenotypeTG.Age_months"], method = "fdr")
     mixedEffectsResults$FDR_adj_Genotype <- p.adjust(mixedEffectsResults[,"PrZ.GenotypeTG"], method = "fdr")
     
-    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_Genotype < 0.05),]
+    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_Genotype < threshold),]
     cat("Number of significant sites in Genotype", nrow(mixedEffectsResults), "\n") 
     
   }else if(test == "Pathology"){
     mixedEffectsResults$FDR_adj_Pathology <- p.adjust(mixedEffectsResults[,"PrZ.Pathology"], method = "fdr")
-    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_Pathology < 0.05),]
+    mixedEffectsResults <- mixedEffectsResults[which(mixedEffectsResults$FDR_adj_Pathology < threshold),]
     cat("Number of significant sites in Pathology", nrow(mixedEffectsResults), "\n") 
     
     
