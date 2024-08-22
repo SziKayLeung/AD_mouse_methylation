@@ -263,7 +263,6 @@ compGenes <- function(directory) {
   
   my_colour = list(
     species = c(human = "black", rTg4510 = wes_palette("Darjeeling2")[2], J20 = wes_palette("Darjeeling1")[1]),
-    approach = c(Array = alpha(wes_palette("Chevalier1")[1],0.6), RRBS = wes_palette("Chevalier1")[1]),
     model = c(Genotype = wes_palette("GrandBudapest2")[1], Interaction = wes_palette("GrandBudapest1")[2], Pathology = wes_palette("GrandBudapest1")[3])
   )
   
@@ -271,18 +270,36 @@ compGenes <- function(directory) {
   # create annotation columns of species, approach and model based on file names
   annotation <- data.frame(files = unique(melted_cormat$Var1))
   annotation$species <- sapply(annotation$files, annotateGroups) 
-  annotation$approach <- sapply(annotation$files, annotateMethod) 
   annotation$model <- sapply(annotation$files, annotateModel) 
   # replace NA with "" 
   nGenes_upper_tri[is.na(nGenes_upper_tri)] <- ""
   
   # set up pheatmap with rownames
   rownames(annotation) <- annotation$files
-  annotation <- annotation %>% select(-files)
+  annotation <- annotation %>% dplyr::select(-files)
   log10upper_tri <- log10(upper_tri+1)
+  start_color <- "#FFFF00"  # Yellow
+  end_color <- "#FF0000"     # bright red
+  
+  # Number of colors in the palette
+  n <- 30
+  
+  # Create a custom color palette from yellow to light blue
+  custom_palette <- colorRampPalette(c(start_color, end_color))(n)
+  
+  # Reverse the custom palette
+  reversed_palette <- rev(custom_palette)
+  
+  # percentages of the human values
+  upper_tri2 <- as.data.frame(upper_tri) %>% mutate_if(is.numeric, ~ ifelse(. > 0, round(. * 100, digits = 0), .))
+  upper_tri2[is.na(upper_tri2)] <- ""
+  
+  df_combined <- as.data.frame(mapply(function(x, y) paste0(x, " (", y, "%)"), as.data.frame(nGenes_upper_tri), as.data.frame(upper_tri2)))
+  df_combined <- df_combined %>% mutate_all(~ gsub("\\(\\%\\)", "", .))
+  
   ggheatmap4 <- pheatmap(upper_tri, cluster_cols = FALSE, cluster_rows = FALSE,annotation_col = annotation,
                         annotation_row = annotation, display_numbers = nGenes_upper_tri, fontsize = 14,
-                        annotation_colors = my_colour, color = rev(hcl.colors(30, "BluYl")), border_color = "white",
+                        annotation_colors = my_colour, color = custom_palette, border_color = "white",
                         na_col = "white",cellheight = 40, cellwidth = 40, legend = FALSE)
   
   return(ggheatmap4)

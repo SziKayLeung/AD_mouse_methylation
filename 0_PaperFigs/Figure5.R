@@ -121,7 +121,7 @@ ggtranscript_plot <- function(gexons, intron=TRUE){
 
 ## ------------ p1: heatmap ------------
 
-source("/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/0_PaperFigs/compGenesSim_txtFiles.R")
+source(paste0(dirnames$script, "4_HumanGeneListComparisons/4_compGenesSim_txtFiles.R"))
 p1 <- compGenes(dirnames$humanAnnot)
 
 
