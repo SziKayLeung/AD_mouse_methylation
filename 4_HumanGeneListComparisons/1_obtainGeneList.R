@@ -25,10 +25,18 @@ source(paste0(scriptDir, "0_PaperFigs/paper_import.config.R"))
 # note not split by platform
 # significance defined by gwas threshold 
 mouseDMP <- list(
-  rTg4510_genotype = unique(sigRes$rTg4510$Genotype %>% filter(P.value_Genotype < 9e-8) %>% dplyr::select(ChIPseeker_GeneSymbol)),
-  rTg4510_pathology = unique(sigRes$rTg4510$Pathology %>% filter(P.value_Pathology < 9e-8) %>% dplyr::select(ChIPseeker_GeneSymbol)),
-  J20_genotype = unique(sigRes$J20$Genotype %>% filter(P.value_Genotype < 9e-8) %>% dplyr::select(ChIPseeker_GeneSymbol)),
-  J20_pathology = unique(sigRes$J20$Pathology %>% filter(P.value_Pathology < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol))
+  # entorhinal cortex
+  rTg4510_genotype_ECX = unique(sigRes$rTg4510$Genotype %>% filter(FDR_adj_Genotype < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  rTg4510_interaction_ECX = unique(sigRes$rTg4510$GenotypeAge %>% filter(FDR_adj_GenotypeAge < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  rTg4510_pathology_ECX = unique(sigRes$rTg4510$PathologyCommonInteraction %>% filter(FDR_adj_Pathology < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  J20_genotype_ECX = unique(sigRes$J20$Genotype %>% filter(FDR_adj_Genotype < 9e-8) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  J20_interaction_ECX = unique(sigRes$J20$GenotypeAge %>% filter(FDR_adj_GenotypeAge < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  J20_pathology_ECX = unique(sigRes$J20$PathologyCommonInteraction %>% filter(FDR_adj_Pathology < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  # hippocampus
+  rTg4510_genotype_HIP = unique(sigResArrayHIP$rTg4510$Genotype %>% filter(FDR_adj_Genotype < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  J20_genotype_HIP = unique(sigResArrayHIP$J20$Genotype %>% filter(FDR_adj_Genotype < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  rTg4510_pathology_HIP = unique(sigResArrayHIP$rTg4510$PathologyCommonInteraction %>% filter(FDR_adj_Pathology < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol)),
+  J20_pathology_HIP = unique(sigResArrayHIP$J20$PathologyCommonInteraction %>% filter(FDR_adj_Pathology < 0.05) %>% dplyr::select(ChIPseeker_GeneSymbol))
 )
 
 
