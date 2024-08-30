@@ -114,6 +114,10 @@ message("Total number of DMPs from array in rTg4510, ECX & HIP: ", length(unique
 message("Total number of DMPs from array in J20, ECX & HIP: ", length(unique(c(J20_array_sig$ECX$Genotype$position,intersect(J20_array_sig$ECX$Interaction$position, J20_array_sig$ECX$Pathology$position), J20_array_sig$HIP$Genotype$position, intersect(J20_array_sig$HIP$Interaction$position, J20_array_sig$HIP$Pathology$position)))))
 
 
+## ----- human ----
+
+message("common rTg4510, J20 and human gene: ", intersect(rTg4510HumanGenes,J20HumanGenes))
+
 ## ------ gene ontology results
 
 write.table(sigRes$J20$Genotype$ChIPseeker_GeneSymbol, paste0(dirnames$differential,"/merged/J20_Genotype_sigGenes.txt"), quote = F, row.names = F, col.names = F)

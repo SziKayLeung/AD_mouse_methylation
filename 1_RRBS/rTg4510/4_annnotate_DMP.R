@@ -40,6 +40,11 @@ source(paste0(scriptDir, "1_RRBS/functions/chipSeekerAnnotation.R"))
 # read rTg4510 significant results
 rTg4510_DMP <- get(load(paste0(dirnames$differential, "/rrbs/rTg4510_sigResultsDMPs.RData")))
 
+# beta values
+rTg4510_rrbs_beta <- get(load(file = paste0(dirnames$processed, "/rrbs/rTg4510_RRBS_SmoothBetas.RData")))
+J20_rrbs_beta <- get(load(file = paste0(dirnames$processed, "/rrbs/J20_RRBS_SmoothBetas.RData")))
+
+# mouse reference
 mouseRef_gtf <- as.data.frame(rtracklayer::import(paste0(dirnames$utils, "gencode.vM22.annotation.gtf"))) 
 
 
@@ -47,6 +52,11 @@ mouseRef_gtf <- as.data.frame(rtracklayer::import(paste0(dirnames$utils, "gencod
 
 anno_chipseeker <- lapply(rTg4510_DMP, function(x) ChipAnnotatePeaks(x))
 
+# annotate all RRBS peaks
+anno_rrbs_all <- list( 
+  rTg4510 = ChipAnnotatePeaks(rTg4510_rrbs_beta %>% tibble::rownames_to_column(., var = "Position")),
+  J20 = ChipAnnotatePeaks(J20_rrbs_beta %>% tibble::rownames_to_column(., var = "Position"))
+)
 
 ##-------------- classify and plot annotations
 
@@ -76,3 +86,4 @@ for(i in 1:3){
 
 rTg4510_rrbs_anno <- anno_final
 save(rTg4510_rrbs_anno, file = paste0(dirnames$annotated, "/rrbs/rTg4510_rrbs_annoSigResultsDMPs.RData"))
+save(anno_rrbs_all, file = paste0(dirnames$annotated, "/rrbs/rrbs_annoAllPositions.RData"))
