@@ -165,22 +165,33 @@ sigArrayResults <- function(arrayBeta, arraySigResults, phenotypeInput){
   return(sigRes)
 }
 
-plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, pathology = FALSE){
+
+merge_beta_phenotype <- function(betaMatrix, phenotypeFile, position){
   
-  color_Tg4510_TG <- "#00AEC9"
-  
-  dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% position)
+  dat <- betaMatrix[position,]
   dat <- dat %>% tibble::rownames_to_column(., var = "position") %>% reshape2::melt(variable.name = "sample",value.name = "methylation", id = "position")
   dat <- merge(dat, phenotypeFile, by.y = 0, by.x = "sample")
 
+  return(dat)  
+}
+
+plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, pathology = FALSE, model = "rTg4510", dat = NULL){
+  
+  colourPoints <- label_colour(model)
+  
+  if(is.null(dat)){
+    dat <- merge_beta_phenotype(betaMatrix, phenotypeFile, position)
+  }else{
+    dat <- dat
+  }
   
   if(isTRUE(interaction)){
     p <- ggplot(dat, aes(x = Age_months, y = methylation)) + 
       geom_point(aes(colour = Genotype)) + 
-      scale_fill_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
+      scale_fill_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
       stat_summary(data=dat, aes(x=Age_months, y=methylation, group=Genotype, colour=Genotype), fun ="mean", geom="line", linetype = "dotted") +
       labs(y = "Methylation", x = "Age (months)") + theme_classic() + 
-      scale_colour_manual(values = c("black", color_Tg4510_TG),guide="none") +
+      scale_colour_manual(values = c("black", colourPoints),guide="none") +
       theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
             panel.grid.major = element_blank(),
             panel.grid.minor = element_blank(),
@@ -189,14 +200,14 @@ plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, p
   }else if(isTRUE(pathology)){
      p <- ggplot(dat, aes(x = ECX, y = methylation)) + 
       geom_point(aes(colour = Genotype)) + 
-      scale_colour_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
+      scale_colour_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
       labs(x = "Pathology", y = "Methylation") +
       geom_smooth(method=lm, formula = y~poly(x,3),colour="black",fill = alpha("gray",0.8))
 
   }else{
     p <- ggplot(dat, aes(x = Genotype, y = methylation, fill = Genotype)) + geom_boxplot(outlier.shape = NA) +
-      scale_fill_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
-      scale_colour_manual(values = c("black", color_Tg4510_TG),guide="none") +
+      scale_fill_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
+      scale_colour_manual(values = c("black", colourPoints),guide="none") +
       labs(x = "Genotype", y = "Methylation") 
   }
   
@@ -211,6 +222,24 @@ plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, p
           panel.grid.minor = element_blank(),
           strip.background = element_blank()) 
 
+  
+  return(p)
+}
+
+plot_DMP_byTissue <- function(ECXbetaMatrix, HIPbetaMatrix, ECXphenotypeFile, HIPphenotypeFile, position, 
+                              interaction = FALSE, pathology = FALSE, model = "rTg4510", gene = NULL){
+  
+  ECX_dat <- merge_beta_phenotype(ECXbetaMatrix, ECXphenotypeFile, position) %>% mutate(tissue = "ECX")
+  HIP_dat <- merge_beta_phenotype(HIPbetaMatrix, HIPphenotypeFile, position)%>% mutate(tissue = "HIP")
+  dat <- rbind(ECX_dat, HIP_dat)
+
+  p <- plot_DMP(betaMatrix=NULL,phenotypeFile=NULL,position=NULL, interaction=interaction,pathology=pathology,model=model,dat=dat) + facet_grid(~ tissue) 
+  
+  if(is.null(gene)){
+    p <- p + labs(subtitle = position)
+  }else{
+    p <- p + labs(subtitle = paste0(gene, " (", position, ")"))
+  }
   
   return(p)
 }

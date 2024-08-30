@@ -1,6 +1,13 @@
 suppressMessages(library(qqman))
 suppressMessages(library(cowplot))
 suppressMessages(library(VennDiagram))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(grid))
+suppressMessages(library(gridExtra))
+suppressMessages(library(ggrepel))
+
+pastelColours <- brewer.pal(4, "Pastel2")
+
 
 color_Tg4510_TG <- "#00AEC9"
 
@@ -25,6 +32,33 @@ label_colour <- function(var){
     }}
   return(colour)
 }
+
+# plot RRBS CpG sites by annotation
+plot_annotate_sites <- function(){
+  # simplify annotations from chipseeker to exon and intron
+  anno_rrbs_all <- lapply(anno_rrbs_all, function(x) x %>% 
+                            mutate(annotation_simple = ifelse(grepl("Exon", annotation), "Exon", annotation),
+                                   annotation_simple = ifelse(grepl("Intron", annotation), "Exon", annotation_simple)))
+  
+  # tally and percentage
+  anno_stats <- lapply(anno_rrbs_all, function(x) as.data.frame(x %>% group_by(annotation_simple) %>%
+                                                                  summarise(count = n()) %>% 
+                                                                  mutate(perc = count/sum(count) * 100)))
+  
+  # binomial test, number of promoter sites
+  rTg4510_promoter = anno_stats$rTg4510[anno_stats$rTg4510$annotation_simple == "Promoter","count"]
+  J20_promoter = anno_stats$J20[anno_stats$J20$annotation_simple == "Promoter","count"]
+  binom.test(rTg4510_promoter, sum(anno_stats$rTg4510$count), p = 0.5, alternative = "two.sided")
+  binom.test(J20_promoter, sum(anno_stats$J20$count), p = 0.5, alternative = "two.sided")
+  
+  p <- bind_rows(anno_stats$rTg4510 %>% mutate(model = "rTg4510"), anno_stats$J20 %>% mutate(model = "J20")) %>%
+    ggplot(., aes(x = model, y = perc, fill = annotation_simple)) + geom_bar(stat = "identity") +
+    labs(x = "Mouse model", y = "Percentage of CpG sites (%)") + theme_classic() +
+    scale_fill_discrete(name = "Annotations")  
+  
+  return(p)
+}
+
 
 # hierarchal clustering by the top 1000 most differentially expressed probes
 cluster_DMP <- function(model, bothBeta = NULL, rrbsBeta = NULL, arrayBeta = NULL, phenotypeInput, lstPositions, clusterNum=1000){
@@ -295,9 +329,9 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
     
   }else{
     if(isFALSE(pathology)){
-      p <- plot_DMP(betaMatrix, phenotypeFile, position = unique(as.character(dat$position)), pathology = FALSE) 
+      p <- plot_DMP(betaMatrix, phenotypeFile, position = unique(as.character(dat$position)), pathology = FALSE, model = colour) 
     }else{
-      p <- plot_DMP(betaMatrix, phenotypeFile, position = unique(as.character(dat$position)), pathology = TRUE) 
+      p <- plot_DMP(betaMatrix, phenotypeFile, position = unique(as.character(dat$position)), pathology = TRUE, model = colour) 
     }
   }
   
@@ -331,14 +365,30 @@ plot_pyro_rrbs_corr <- function(inputPyro, inputPyroPos, rrbsBeta, inputPhenotyp
   
   # mutate to RRBS percentage
   merged <- merged %>% mutate(RRBSmethylation = RRBSmethylation * 100)
-  print(merged)
+  #print(merged)
   
-  p <- ggplot(merged, aes(x = methylationPyro, RRBSmethylation, colour = Genotype)) + geom_point() + 
-    facet_wrap(~Position.x) +
+  output <- list()
+  for(i in 1:length(unique(merged$Position.x))){
+    pos <- unique(merged$Position.x)[i]
+    dat <- merged[merged$Position.x == pos,]
+    message("position: ", pos)
+    print(cor.test(dat$methylationPyro, dat$RRBSmethylation))
+  #  output[[i]] <- ggplot(dat, aes(x = RRBSmethylation, y = methylationPyro, colour = Genotype, group = Genotype)) + geom_point(size = 3) + 
+  #    theme_classic() +
+  #    labs(y = "Pyrosequencing methylation (%)", x = "RRBS methylation (%)", subtitle = pos) +
+  #    theme(strip.background = element_blank()) +
+  #    geom_smooth(method=lm, formula = y~poly(x,3),fill = "white", linetype = "dotted") +
+  #    scale_color_manual(values=c("black", color_Tg4510_TG)) 
+  }
+  
+  p <- ggplot(merged, aes(x = RRBSmethylation, y = methylationPyro, colour = Genotype, group = Genotype)) + geom_point(size = 3) + 
     theme_classic() +
-    labs(x = "Pyrosequencing methylation (%)", y = "RRBS methylation (%)") +
+    labs(y = "Pyrosequencing methylation (%)", x = "RRBS methylation (%)") +
+    theme(strip.background = element_blank()) +
+    geom_smooth(method=lm, formula = y~poly(x,3),fill = "white", linetype = "dotted") +
     scale_color_manual(values=c("black", color_Tg4510_TG)) +
-    theme(strip.background = element_blank())
+    facet_grid(~Position.x)
+ 
   
   return(p)
 }
@@ -370,5 +420,21 @@ plot_clock <- function(clock, tissue, model){
     scale_colour_manual(values = c("black",colour)) 
   
   return(p)
+  
+}
+
+
+## ------ GO -----
+
+extract_postions_as_bed <- function(Position, path){
+  
+  dat <- data.frame(Position)
+  colnames(dat) <- "Position"
+  dat <- dat %>% mutate(chr = word(Position,c(1),sep=fixed(":")), 
+                        pos = word(Position,c(2),sep=fixed(":")),
+                        pos2 = pos) %>% 
+    dplyr::select(chr, pos, pos2)
+  
+  write.table(dat, path, col.names = F, row.names = F, quote = F, sep = "\t")
   
 }
