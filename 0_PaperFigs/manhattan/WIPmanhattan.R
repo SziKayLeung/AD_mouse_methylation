@@ -58,11 +58,14 @@ don <- don %>% mutate(label = ifelse(ChIPseeker_GeneSymbol %in% top, ChIPseeker_
 don <- don %>% mutate(label_unique = if_else(duplicated(label), NA_character_, label))
 
 don <- don %>% filter(!is.na(CHR))
+don$Platform <- as.factor(don$Platform)
 p <- ggplot(don, aes(x=BPcum, y=-log10(p.val.Genotype))) +
   
   # Show all points
-  geom_point( aes(color=as.factor(Platform)), alpha=0.8, size=1.3) +
-  scale_color_manual(values = rep(c("red", "skyblue"), 22 )) +
+  geom_point(aes(color = Platform, fill = as.factor(Platform)), 
+             size = 1.3, shape = 21) +  # Adjust alpha to 0.6 for better visibility
+  scale_color_manual(values = rep(c(wes_palette("Rushmore1")[4], alpha(wes_palette("Rushmore1")[3],0.2)), 22)) +
+  scale_fill_manual(values = rep(c(wes_palette("Rushmore1")[4], alpha(wes_palette("Rushmore1")[3],0.2)), 22)) +
   
   # custom X axis:
   scale_x_continuous( label = axisdf$CHR, breaks= axisdf$center ) +
@@ -76,7 +79,7 @@ p <- ggplot(don, aes(x=BPcum, y=-log10(p.val.Genotype))) +
   # Custom the theme:
   theme_bw() +
   theme( 
-    legend.position="none",
+    legend.position="bottom",
     panel.border = element_blank(),
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()

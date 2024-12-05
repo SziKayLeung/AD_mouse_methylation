@@ -5,6 +5,7 @@ suppressMessages(library(RColorBrewer))
 suppressMessages(library(grid))
 suppressMessages(library(gridExtra))
 suppressMessages(library(ggrepel))
+suppressMessages(library(ggh4x))
 
 pastelColours <- brewer.pal(4, "Pastel2")
 
@@ -263,7 +264,7 @@ plot_merged_manhattan <- function(mergedManhattanPlot, annoRRBS, annoArray, term
 }
 
 plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transcript, age = 0, boxplot = FALSE, colour = FALSE,
-                             pathology = FALSE){
+                             pathology = FALSE, position = NULL){
   
   if(isFALSE(colour)){
     colourbox = "yellow"
@@ -272,8 +273,12 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
   }
   
   # extract positions from beta matrix
-  dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% sigResults[sigResults$ChIPseeker_GeneSymbol %in% gene,"Position"])
-  
+  if(is.null(position)){
+    dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% sigResults[sigResults$ChIPseeker_GeneSymbol %in% gene,"Position"])
+  }else{
+    dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% position)
+  }
+
   # split to get the coordinates from the position <chrX:YY>
   dat <- dat %>% tibble::rownames_to_column(., var = "position") %>% reshape2::melt(variable.name = "sample",value.name = "methylation", id = "position")
   dat <- merge(dat, phenotypeFile, by.y = 0, by.x = "sample")
@@ -294,10 +299,13 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
   gene_track <- ggplot() + 
     geom_alignment(TxDb.Mmusculus.UCSC.mm10.knownGene, which = gr, label = FALSE) + 
     theme_bw() + 
+    labs(subtitle = gene) +
     theme(panel.grid.major = element_blank(), 
           panel.grid.minor = element_blank(),
           text = element_text(size = 12),
-          panel.border = element_blank()) 
+          panel.border = element_blank(),
+          plot.subtitle = element_text(face = "italic")) 
+
   
   # min-value and max-value from the DMP range
   minvalue = min(dat$coordinate)
@@ -315,7 +323,7 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
       geom_point() +
       scale_color_manual(values=c("black", colourbox)) +
       theme_classic() +
-      stat_summary(aes(col = Genotype, group = Genotype), fun.y = mean, geom = "smooth", linetype = "dotted") +
+      stat_summary(aes(col = Genotype, group = Genotype), fun.y = mean, geom = "smooth", linetype = "dotted", colour = colourbox) +
       theme_classic() + 
       theme(panel.border = element_rect(fill = NA, color = "white", linetype = "dotted"),
             panel.grid.major = element_blank(),

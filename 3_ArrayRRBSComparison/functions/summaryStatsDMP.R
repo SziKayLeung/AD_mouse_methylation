@@ -175,7 +175,7 @@ merge_beta_phenotype <- function(betaMatrix, phenotypeFile, position){
   return(dat)  
 }
 
-plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, pathology = FALSE, model = "rTg4510", dat = NULL){
+plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, pathology = FALSE, model = "rTg4510", dat = NULL, table = FALSE){
   
   colourPoints <- label_colour(model)
   
@@ -185,43 +185,49 @@ plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, p
     dat <- dat
   }
   
-  if(isTRUE(interaction)){
-    p <- ggplot(dat, aes(x = Age_months, y = methylation)) + 
-      geom_point(aes(colour = Genotype)) + 
-      scale_fill_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
-      stat_summary(data=dat, aes(x=Age_months, y=methylation, group=Genotype, colour=Genotype), fun ="mean", geom="line", linetype = "dotted") +
-      labs(y = "Methylation", x = "Age (months)") + theme_classic() + 
-      scale_colour_manual(values = c("black", colourPoints),guide="none") +
+  if(isFALSE(table)){
+    if(isTRUE(interaction)){
+      p <- ggplot(dat, aes(x = Age_months, y = methylation)) + 
+        geom_point(aes(colour = Genotype), size = 2) + 
+        scale_fill_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
+        stat_summary(data=dat, aes(x=Age_months, y=methylation, group=Genotype, colour=Genotype), fun ="mean", geom="line", linetype = "dotted") +
+        labs(y = "Methylation", x = "Age (months)") + theme_classic() + 
+        scale_colour_manual(values = c("black", colourPoints),guide="none") +
+        theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank()) 
+      
+    }else if(isTRUE(pathology)){
+      p <- ggplot(dat, aes(x = ECX, y = methylation)) + 
+        geom_point(aes(colour = Genotype), size = 2) + 
+        scale_colour_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
+        labs(x = "Pathology", y = "Methylation") +
+        geom_smooth(method=lm, formula = y~x,colour="black",fill = alpha("gray",0.8))
+      
+    }else{
+      p <- ggplot(dat, aes(x = Genotype, y = methylation, fill = Genotype)) + 
+        geom_boxplot(outlier.shape = NA) +
+        geom_jitter(aes(colour = Genotype),width = 0.25, size = 2) + 
+        scale_fill_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
+        scale_colour_manual(values = c("black", colourPoints),guide="none") +
+        labs(x = "Genotype", y = "Methylation") 
+    }
+    
+    if(length(position > 1)){
+      p <- p + facet_grid(~position)
+    }
+    
+    p <- p +
+      theme_classic() + 
       theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
             panel.grid.major = element_blank(),
             panel.grid.minor = element_blank(),
             strip.background = element_blank()) 
-  
-  }else if(isTRUE(pathology)){
-     p <- ggplot(dat, aes(x = ECX, y = methylation)) + 
-      geom_point(aes(colour = Genotype)) + 
-      scale_colour_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
-      labs(x = "Pathology", y = "Methylation") +
-      geom_smooth(method=lm, formula = y~poly(x,3),colour="black",fill = alpha("gray",0.8))
-
+    
   }else{
-    p <- ggplot(dat, aes(x = Genotype, y = methylation, fill = Genotype)) + geom_boxplot(outlier.shape = NA) +
-      scale_fill_manual(values = c(alpha("black",0.2), colourPoints),guide="none") +
-      scale_colour_manual(values = c("black", colourPoints),guide="none") +
-      labs(x = "Genotype", y = "Methylation") 
+    p <- dat
   }
-  
-  if(length(position > 1)){
-    p <- p + facet_grid(~position)
-  }
-  
-  p <- p +
-    theme_classic() + 
-    theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          strip.background = element_blank()) 
-
   
   return(p)
 }
