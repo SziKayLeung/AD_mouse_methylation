@@ -33,6 +33,40 @@ sigResArrayHIP$J20$Genotype <- sigResArrayHIP$J20$Genotype %>%
 sigResArrayHIP$J20$Pathology <- sigResArrayHIP$J20$Pathology %>% 
   mutate(ECX = ifelse(Position %in% c(sigResArrayECX$J20$Genotype$Position,intersect(sigResArrayECX$J20$GenotypeAge$Position,sigResArrayECX$J20$Pathology$Position)), TRUE, FALSE)) 
 
+
+# unique DMPs in ECX array but not in hippocampus array
+ECXrTg4510Unique2HIP <- setdiff(
+  # ECX
+  c(rTg4510_array_sig$ECX$Genotype$position,
+    rTg4510_array_sig$ECX$Interaction$position,
+   rTg4510_array_sig$ECX$Pathology$position),
+  # HIP
+  c(rTg4510_array_sig$HIP$Genotype$position,
+    rTg4510_array_sig$HIP$Interaction$position,
+    rTg4510_array_sig$HIP$Pathology$position))
+
+ECXrTg4510Unique2HIPTable <- rbind(
+  rTg4510_array_sig$ECX$Genotype[rTg4510_array_sig$ECX$Genotype$position %in% ECXrTg4510Unique2HIP,] %>% 
+    arrange(FDR_adj_Genotype) %>% 
+    dplyr::select(position, cpg, FDR_adj_Genotype, ChIPseeker_GeneSymbol, distanceToTSS) %>% 
+    rename("FDR_adj_Genotype" = "FDR_adj") %>% mutate(test = "genotype"),
+  rTg4510_array_sig$ECX$Interaction[rTg4510_array_sig$ECX$Interactionposition %in% ECXrTg4510Unique2HIP,] %>% 
+    arrange(FDR_adj_GenotypeAge) %>% 
+    dplyr::select(position, cpg, FDR_adj_GenotypeAge, ChIPseeker_GeneSymbol, distanceToTSS) %>% 
+    rename("FDR_adj_GenotypeAge" = "FDR_adj") %>% mutate(test = "interaction"),
+  rTg4510_array_sig$ECX$Pathology[rTg4510_array_sig$ECX$Pathology$position %in% ECXrTg4510Unique2HIP,] %>% 
+    arrange(FDR_adj_Pathology) %>% 
+    dplyr::select(position, cpg, FDR_adj_Pathology, ChIPseeker_GeneSymbol, distanceToTSS) %>%
+    rename("FDR_adj_Pathology" = "FDR_adj") %>% mutate(test = "pathology")
+)
+
+plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                  ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr11:97685376", pathology = TRUE)
+plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                  ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr5:52157628", pathology = TRUE)
+
+
+
 ## ------------------- table output ------------------
 
 write.csv(rTg4510_ECX_sigResultsDMPs$Genotype, paste0(dirnames$paper,"/tables/rTg4510_ECX_sigResultsDMPs_Genotype.csv"), quote = T)
@@ -54,4 +88,26 @@ write.csv(sigResArrayHIP$J20$Pathology, paste0(dirnames$paper,"/tables/J20_HIP_s
 
 # GO analysis
 extract_postions_as_bed(sigRes$rTg4510$Genotype$Position, paste0(dirnames$GO,"rTg4510_sig_ECX_Genotype_coordinates.bed"))
+extract_postions_as_bed(sigRes$J20$Genotype$Position, paste0(dirnames$GO,"J20_sig_ECX_Genotype_coordinates.bed"))
+extract_postions_as_bed(unique(sigRes$J20$PathologyCommonInteraction$Position), paste0(dirnames$GO,"J20_sig_ECX_PathologyCommonInteraction_coordinates.bed"))
+extract_postions_as_bed(unique(sigRes$rTg4510$PathologyCommonInteraction$Position), 
+                        paste0(dirnames$GO,"rTg4510_sig_ECX_PathologyCommonInteraction_coordinates.bed"))
+extract_postions_as_bed(unique(c(sigRes$rTg4510$Genotype$Position,sigRes$rTg4510$PathologyCommonInteraction$Position)),
+                        paste0(dirnames$GO,"rTg4510_sig_ECX_GenotypePathologyCommonInteraction_coordinates.bed"))
+# note over 1M sites and GREAT cannot handle 
 extract_postions_as_bed((unique(c(row.names(rTg4510_rrbs_beta), row.names(rTg4510_array_beta)))), paste0(dirnames$GO,"rTg4510_RRBSArray_ECX_coordinates.bed"))
+# subset to promoter sites in RRBS only and all Array sites
+# background needs to include the significant sites tested
+GO_background_sites <- c(unique(c(anno_rrbs_all$rTg4510[anno_rrbs_all$rTg4510$Promoter == "TRUE","position"], 
+                                 row.names(rTg4510_array_beta),
+                                 sigRes$rTg4510$Genotype$Position,
+                                 sigRes$rTg4510$PathologyCommonInteraction$Position,
+                                 sigRes$J20$Genotype$Position,
+                                 sigRes$J20$PathologyCommonInteraction$Position
+)))
+setdiff(sigRes$J20$PathologyCommonInteraction$Position, GO_background_sites)
+
+extract_postions_as_bed(GO_background_sites, paste0(dirnames$GO,"rTg4510_PromoterRRBSArray_ECX_coordinates.bed"))
+
+
+
