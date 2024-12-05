@@ -82,9 +82,9 @@ Creb3l4 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, p
 As3mt <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "As3mt", "ENSMUST00000003655.8", colour = "rTg4510")
 
 # top-ranked DMPs in rTg4510 pathology 
-Cisd3 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Cisd3", "ENSMUST00000107583.2", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
-Zfp423 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Zfp423", "ENSMUST00000109655.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
-Lrcol1 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Lrcol1", "ENSMUST00000185691.6", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
+Insyn2b <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Insyn2b", "ENSMUST00000165963.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
+Zfp423 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Zfp423", "ENSMUST00000109655.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE, position = "chr8:87750175")
+Ankrd52 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Ankrd52", "ENSMUST00000014642.9", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
 Adk <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Adk", "ENSMUST00000045376.10", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
 
 # plot DMP and Track for Prnp
@@ -99,11 +99,15 @@ prnpPyroPos <- c(
 )
 prnpPyroPosdf <- reshape2::melt(prnpPyroPos, value.name = "Position") %>% tibble::rownames_to_column(., var = "prnpPosition")
 
-pPrnPrnpPyro <- input_pyro$prnp %>% mutate(Sample.group = Group.ID) %>% dplyr::select(Age, Sample.group, contains("Pos")) %>% 
+pPrnPrnpPyro <- input_pyro$prnp %>% 
+  # keep only the samples that were in the final dataset
+  filter(SAMPLE %in% row.names(phenotype$rTg4510)) %>% 
+  mutate(Sample.group = Group.ID) %>% dplyr::select(Age, Sample.group, contains("Pos")) %>% 
   reshape2::melt(id = c("Age","Sample.group"), variable.name = "Position", value.name = "methylation") %>% 
   mutate(Sample.group = factor(Sample.group, levels = c("WT","TG"))) %>%
   ggplot(., aes(x = Sample.group, y = methylation, fill = Sample.group)) + geom_boxplot(aes(fill = Sample.group), outlier.shape = NA) + 
   facet_grid(~Position, labeller = as_labeller(prnpPyroPos)) +
+  geom_jitter(aes(colour = Sample.group),width = 0.25, size = 2) +
   #geom_point(aes(fill = Sample.group), size = 2, shape = 21, position = position_jitterdodge()) +
   scale_fill_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
   scale_colour_manual(values = c("black", color_Tg4510_TG),guide="none") +
@@ -113,17 +117,49 @@ pPrnPrnpPyro <- input_pyro$prnp %>% mutate(Sample.group = Group.ID) %>% dplyr::s
         panel.grid.minor = element_blank(),
         strip.background = element_blank()) 
 
+
+
 plot_pyro_rrbs_corr(input_pyro$prnp, prnpPyroPosdf, rTg4510_rrbs_beta, phenotype$rTg4510)
 
 # plot DMP and Track for Ank1
 pAnk1DMP <- plotGeneTrackDMP(sigResults=sigRes$rTg4510$Genotype, betaMatrix=sigBeta$rTg4510$Genotype, phenotypeFile=phenotype$rTg4510, 
                              gene="Ank1", transcript="ENSMUST00000110688.8", colour = "rTg4510", boxplot = TRUE)
+
+tAnk1DMP <- plot_DMP(betaMatrix=sigBeta$rTg4510$Genotype, phenotypeFile=phenotype$rTg4510, 
+         position = c("chr8:23023240","chr8:23023210","chr8:23023192"), table = TRUE) %>% 
+  mutate(method = "RRBS")
+
+
 ank1PyroPos <- c(
   `Pos1Meth` = "chr8:23023192",
   #`Pos2Meth` = "chr8:23023210",
   `Pos3Meth` = "chr8:23023240"
 )
 ank1PyroPosdf <- reshape2::melt(ank1PyroPos, value.name = "Position") %>% tibble::rownames_to_column(., var = "prnpPosition")
+
+tAnk1Pyro <- input_pyro$ank1 %>% dplyr::select(SAMPLE, Age, Group.ID, Pos1Meth, Pos3Meth) %>% 
+  reshape2::melt(id = c("Age","Group.ID","SAMPLE"), variable.name = "Position", value.name = "methylation") %>% 
+  mutate(Age = as.factor(stringr::str_remove(Age,"m"))) %>% 
+  mutate(Group.ID = factor(Group.ID, levels = c("WT","TG"))) %>%
+  merge(., phenotype$rTg4510, by.x = "SAMPLE", by.y = 0)%>% 
+  merge(., reshape2::melt(ank1PyroPos, value.name = "position"), by.x = "Position", by.y = 0) %>% 
+  dplyr::rename("sample"= "Position") %>% mutate(method = "Pyrosequencing") %>%
+  mutate(methylation = methylation/100) 
+
+pAnk1PyroRRBS <- rbind(tAnk1DMP, tAnk1Pyro %>% dplyr::select(colnames(tAnk1DMP))) %>% 
+  mutate(method = factor(method, levels = c("RRBS","Pyrosequencing"))) %>%
+  ggplot(., aes(x = Genotype, y = methylation, fill = Genotype)) + geom_boxplot(outlier.shape = NA) +
+  geom_jitter(aes(colour = Genotype),width = 0.25, size = 2) +
+  scale_fill_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
+  scale_colour_manual(values = c("black", color_Tg4510_TG),guide="none") +
+  labs(x = "Genotype", y = "Methylation") +
+  facet_nested(~ position + method) +
+  theme_classic() + 
+  theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank()) 
+
 
 pAnk1Pyro <- input_pyro$ank1 %>% dplyr::select(Age, Group.ID, Pos1Meth, Pos3Meth) %>% 
   reshape2::melt(id = c("Age","Group.ID"), variable.name = "Position", value.name = "methylation") %>% 
@@ -166,8 +202,8 @@ Prmt8 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pat
 Zfp518b <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Zfp518b", "ENSMUST00000179555.7", colour = "J20", boxplot = TRUE, pathology = TRUE)
 Zmiz1 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Zmiz1", "ENSMUST00000162645.7", colour = "J20", boxplot = TRUE, pathology = TRUE)
 
-plot_grid(Nutf2, Tenm2, scale = 0.9)
-plot_grid(Ncam2, Zmiz1, Zfp518b, Prmt8, scale = 0.9)
+plot_grid(Nutf2, Tenm2, scale = 0.9, labels = c("i","ii"))
+plot_grid(Ncam2, Zmiz1, Zfp518b, Prmt8, scale = 0.9, labels = c("i","ii","iii","iv"))
 
 # venn diagram of hippocampus vs entorhinal cortex
 HipECXVennrTg4510 <- plot_grid(venn.diagram(
@@ -187,6 +223,25 @@ HipECXVennJ20 <- plot_grid(venn.diagram(
 ))
 plot_grid(HipECXVennrTg4510,HipECXVennJ20, scale = 0.9, labels = c("i","ii"))
 
+ECXrTg4510Unique2HIP <- setdiff(
+  # ECX
+  c(rTg4510_array_sig$ECX$Genotype$position,
+                  intersect(rTg4510_array_sig$ECX$Interaction$position, rTg4510_array_sig$ECX$Pathology$position)),
+  # HIP
+  c(rTg4510_array_sig$HIP$Genotype$position,
+          intersect(rTg4510_array_sig$HIP$Interaction$position, rTg4510_array_sig$HIP$Pathology$position)))
+
+
+rbind(
+  rTg4510_array_sig$ECX$Genotype[rTg4510_array_sig$ECX$Genotype$position %in% ECXrTg4510Unique2HIP,] %>% 
+    arrange(FDR_adj_Genotype) %>% 
+    dplyr::select(position, cpg, FDR_adj_Genotype, ChIPseeker_GeneSymbol, distanceToTSS) %>% 
+    rename("FDR_adj_Genotype" = "FDR_adj") %>% mutate(test = "genotype"),
+  rTg4510_array_sig$ECX$Pathology[rTg4510_array_sig$ECX$Pathology$position %in% ECXrTg4510Unique2HIP,] %>% 
+    arrange(FDR_adj_Pathology) %>% 
+    dplyr::select(position, cpg, FDR_adj_Pathology, ChIPseeker_GeneSymbol, distanceToTSS) %>%
+    rename("FDR_adj_Pathology" = "FDR_adj") %>% mutate(test = "pathology")
+)
 
 commonECXHIPplots <- list(
   Dcaf5 = plot_DMP_byTissue(ECXbetaMatrix=sigBeta$rTg4510$Genotype, HIPbetaMatrix=rTg4510_array_HIP_beta, 
@@ -319,14 +374,15 @@ ggplot(dat, aes(x = mouseESGenotype, y = humanES, colour = humanGene, label = hu
   scale_colour_discrete(name = "Gene")
 
 Tspan14 <- plotGeneTrackDMP(sigResults=sigRes$J20$Genotype, betaMatrix=sigBeta$J20$Genotype, phenotypeFile=phenotype$J20, 
-                 gene="Tspan14", transcript="ENSMUST00000047652.5", colour = "J20", boxplot = TRUE)
+                 gene="Tspan14", transcript="ENSMUST00000047652.5", colour = "J20", boxplot = TRUE,
+                 position = "chr14:40966816")
 
 #-------------- Output -------------
 
 plot_grid(pCluster$rTg4510Genotype$gtable, pCluster$rTg4510Pathology$gtable)
 plot_grid(Mapt, Prnp, Ncapg2, Fgf14, labels = c("A","B","C","D"), scale = 0.9)
-plot_grid(Dcaf5, Arsi, Creb3l4, As3mt, labels = c("A","B","C","D"), scale = 0.9)
-plot_grid(Cisd3, Zfp423, Lrcol1, Adk, labels = c("A","B","C","D"), scale = 0.9)
+plot_grid(Dcaf5, Arsi, Creb3l4, As3mt, labels = c("i","ii","iii","iv"), scale = 0.9)
+plot_grid(Zfp423, Adk, Insyn2b, Ankrd52, labels = c("i","ii","iii","iv"), scale = 0.9)
 
 plot_grid(pPrnPrnPDMP,pPrnPrnpPyro, rel_heights = c(0.6,0.4), labels = c("A","B"))
 plot_grid(pAnk1DMP,pAnk1Pyro, rel_heights = c(0.6,0.4), labels = c("A","B"))
