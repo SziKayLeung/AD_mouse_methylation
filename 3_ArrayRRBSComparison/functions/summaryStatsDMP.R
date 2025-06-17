@@ -1,4 +1,3 @@
-LOGEN_ROOT="/lustre/projects/Research_Project-MRC148213/lsl693/scripts/LOGen"
 source(paste0(LOGEN_ROOT, "/aesthetics_basics_plots/draw_density.R"))
 source(paste0(LOGEN_ROOT, "/aesthetics_basics_plots/pthemes.R"))
 
@@ -34,12 +33,13 @@ corrPlotCommonProbes <- function(rrbsBeta, arrayBeta, commonProbes){
 
 # calculate absolute difference between TG and WT
 extract_delta <- function(betaMatrix, sigMatrix = FALSE, phenotypeFile, position = NULL){
-  if(!isFALSE(sigMatrix)){
+  if (!isFALSE(sigMatrix)) {
     dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% sigMatrix[["position"]])
-  }else{
+  } else if (position == "ALL") {
+    dat <- betaMatrix
+  } else {
     dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% position)
   }
-  
   
   if(!is.null(sigMatrix)){
     colnames(dat) <- unlist(lapply(colnames(betaMatrix), function(x) paste0(x,"_", phenotypeFile[row.names(phenotypeFile) == x,"Genotype"])))
@@ -55,7 +55,6 @@ extract_delta <- function(betaMatrix, sigMatrix = FALSE, phenotypeFile, position
   
   return(dat)
 }
-
 
 MergeArrayRRBSSigResults <- function(rrbsBeta, arrayBeta, rrbsSigResults, arraySigResults, phenotypeInput){
   
@@ -86,22 +85,22 @@ MergeArrayRRBSSigResults <- function(rrbsBeta, arrayBeta, rrbsSigResults, arrayS
   # Process Genotype data
   message("Merge ECX Genotype")
   sig_ECX_Genotype <- rbind(
-    mergeSigResults("Genotype", arraySigResults$ECX$Genotype, "Array", delta$Genotype$array, "PrZ.GenotypeTG", "FDR_adj_Genotype", cols2Keep),
-    mergeSigResults("Genotype",rrbsSigResults$Genotype, "RRBS", delta$Genotype$rrbs, "p.val.Genotype", "FDR_adj_genotype", cols2Keep)
+    mergeSigResults("Genotype", arraySigResults$ECX$Genotype, "Array", delta$Genotype$array, "PrZ.GenotypeTG", "FDR_adj_Genotype", "Betas.GenotypeTG", cols2Keep),
+    mergeSigResults("Genotype", rrbsSigResults$Genotype, "RRBS", delta$Genotype$rrbs, "p.val.Genotype", "FDR_adj_genotype", "estimate.Genotype", cols2Keep)
   ) %>% arrange(P.value_Genotype) 
   
   # Process GenotypeAge data
   message("Merge ECX GenotypeAge")
   sig_ECX_GenotypeAge <- rbind(
-    mergeSigResults("GenotypeAge", arraySigResults$ECX$Interaction, "Array", delta$Interaction$array, "PrZ.GenotypeTG.Age_months", "FDR_adj_GenotypeAge", cols2Keep),
-    mergeSigResults("GenotypeAge", rrbsSigResults$Interaction, "RRBS", delta$Interaction$rrbs, "p.val.Interaction", "FDR_adj_interaction", cols2Keep)
+    mergeSigResults("GenotypeAge", arraySigResults$ECX$Interaction, "Array", delta$Interaction$array, "PrZ.GenotypeTG.Age_months", "FDR_adj_GenotypeAge", "Betas.GenotypeTG.Age_months", cols2Keep),
+    mergeSigResults("GenotypeAge", rrbsSigResults$Interaction, "RRBS", delta$Interaction$rrbs, "p.val.Interaction", "FDR_adj_interaction", "estimate.Interaction", cols2Keep)
   ) %>% arrange(P.value_GenotypeAge)
   
   # Process Pathology data 
   message("Merge ECX Pathology")
   sig_ECX_Pathology <- rbind(
-    mergeSigResults("Pathology", arraySigResults$ECX$Pathology, "Array", delta$Pathology$array, "PrZ.Pathology", "FDR_adj_Pathology", cols2Keep),
-    mergeSigResults("Pathology", rrbsSigResults$Pathology, "RRBS", delta$Pathology$rrbs, "p.val.Pathology", "FDR_adj_pathology", cols2Keep)
+    mergeSigResults("Pathology", arraySigResults$ECX$Pathology, "Array", delta$Pathology$array, "PrZ.Pathology", "FDR_adj_Pathology", "Betas.Pathology", cols2Keep),
+    mergeSigResults("Pathology", rrbsSigResults$Pathology, "RRBS", delta$Pathology$rrbs, "p.val.Pathology", "FDR_adj_pathology", "estimate.Pathology", cols2Keep)
   ) %>% arrange(P.value_Pathology)
   
   
@@ -251,7 +250,7 @@ plot_DMP_byTissue <- function(ECXbetaMatrix, HIPbetaMatrix, ECXphenotypeFile, HI
 }
 
 
-mergeSigResults <- function(test, sigResults, platform_name, logFC_data, value_col, fdr_col, cols_to_keep) {
+mergeSigResults <- function(test, sigResults, platform_name, logFC_data, value_col, fdr_col, beta_col, cols_to_keep) {
   
   if(is.null(sigResults)){
     dat <- data.frame(matrix(ncol = 5 + length(cols_to_keep), nrow = 0))
@@ -266,8 +265,8 @@ mergeSigResults <- function(test, sigResults, platform_name, logFC_data, value_c
     dat <- sigResults %>%
       mutate(position = Position) %>%
       merge(., logFC_data, by = "position", all = TRUE) %>%
-      dplyr::select(platform, position, cpg, !!value_col, !!fdr_col, all_of(cols_to_keep)) %>%
-      setNames(c("Platform", "Position", "cpg", paste0("P.value_",test), paste0("FDR_adj_",test), cols_to_keep))
+      dplyr::select(platform, position, cpg, !!value_col, !!fdr_col, !!beta_col,  all_of(cols_to_keep)) %>%
+      setNames(c("Platform", "Position", "cpg", paste0("P.value_",test), paste0("FDR_adj_",test), paste0("BetaSize_",test), cols_to_keep))
   }
   
   
