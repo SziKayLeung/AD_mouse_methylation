@@ -11,20 +11,14 @@
 
 #-------------- input -------------
 
-rootDir = "/lustre/projects/Research_Project-191406"
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
+rootDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/1_Projects/AD_Mouse_Model/rTg4510_mice_methylation_paper/0_ZenOutput/"
+scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
+LOGEN_ROOT = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/LOGEN/"
 source(paste0(scriptDir, "import.config"))
 source(paste0(scriptDir, "0_PaperFigs/Functions.R"))
 source(paste0(scriptDir, "0_PaperFigs/paper_import.config.R"))
 source(paste0(scriptDir, "3_ArrayRRBSComparison/functions/summaryStatsDMP.R"))
 source(paste0(LOGEN_ROOT, "/aesthetics_basics_plots/draw_venn.R"))
-
-# old results
-#res <- read.csv("/lustre/projects/Research_Project-191406/EmmaW/RRBSAnnotatedResults/rTg4510/DMPs/DMPsPathology_rTg4510_sig_pathology_1500bptssAn#no.csv")
-#res <- res %>% arrange(FDR_adj_pathology)
-#load(file = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/rTg4510_RRBSbetasComplete.RData")
-#plot_DMP(betaMatrix=RRBS_completebetas, phenotypeFile=phenotype$rTg4510, position = "chr11:6228592", pathology = TRUE) 
-
 
 #-------------- Figures -------------
 

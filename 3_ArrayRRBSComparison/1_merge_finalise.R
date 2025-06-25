@@ -12,8 +12,9 @@
 
 # directory input
 rootDir = "/lustre/projects/Research_Project-191406"
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/"
-source(paste0(scriptDir, "import.config"))
+scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
+LOGEN_ROOT="C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/LOGen"
+source(paste0(scriptDir, "import.config.R"))
 source(paste0(scriptDir, "3_ArrayRRBSComparison/functions/summaryStatsDMP.R"))
 
 #-------------- input -------------
@@ -65,7 +66,7 @@ rTg4510_merge_sig <- MergeArrayRRBSSigResults(rrbsBeta=rTg4510_rrbs_beta,
                                               phenotypeInput=phenotype$rTg4510)
 J20_merge_sig <- MergeArrayRRBSSigResults(J20_rrbs_beta, J20_array_beta, J20_rrbs_sig, J20_array_sig, phenotype$J20)
 
-# save signfiicant results
+# save significant results
 rTg4510_ECX_sigResultsFull <- rTg4510_merge_sig$sig_ECX_Full
 J20_ECX_sigResultsFull <- J20_merge_sig$sig_ECX_Full
 save(rTg4510_ECX_sigResultsFull, file = paste0(dirnames$annotated,"/final/rTg4510_ECX_sigResultsDMPs.RData"))

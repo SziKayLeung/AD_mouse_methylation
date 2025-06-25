@@ -1,6 +1,6 @@
 
 scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
-source(paste0(scriptDir, "import.config"))
+source(paste0(scriptDir, "import.config.R"))
 source(paste0(scriptDir, "0_PaperFigs/Functions.R"))
 source(paste0(scriptDir, "0_PaperFigs/paper_import.config.R"))
 

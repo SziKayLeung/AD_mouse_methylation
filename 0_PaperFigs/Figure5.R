@@ -28,33 +28,22 @@ suppressMessages(library("grid"))
 
 ## ------------ input ------------
 
-rootDir = "/lustre/projects/Research_Project-191406"
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
-source(paste0(scriptDir, "import.config"))
-
-
-# directory paths
-dirnames <- list(
-  biseq = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/",
-  AishaArray = "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/",
-  array_anno = "/lustre/projects/Research_Project-191406/EmmaW/Array/Results",
-  rrbs_anno = "/lustre/projects/Research_Project-191406/EmmaW/RRBSAnnotatedResults",
-  rTg4510_rrbs = "/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/DMPs/rTg4510"
-)
-
+rootDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/1_Projects/AD_Mouse_Model/rTg4510_mice_methylation_paper/0_ZenOutput/"
+scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
+source(paste0(scriptDir, "import.config.R"))
 
 ## Results after applying BiSeq and smoothing
 # load from two mouse models and save into list
 RRBS_complete <- list()
-load(file = paste0(dirnames$biseq, "/rTg4510_RRBSbetasComplete.RData"))
+load(file = paste0(rootDir, "1_processed/rrbs/rTg4510_RRBSbetasComplete.RData"))
 RRBS_complete$rTg4510 <- RRBS_completebetas
-load(file = paste0(dirnames$biseq, "/J20_RRBSbetasComplete.RData"))
+load(file = paste0(rootDir, "1_processed/rrbs/J20_RRBSbetasComplete.RData"))
 RRBS_complete$J20 <- RRBS_completebetas
 
 # phenotype data
 pheno <- list(
-  rTg4510 = read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/Tg4510_coldata_RRBS.csv", stringsAsFactors=FALSE),
-  J20 = read.csv("/gpfs/ts0/projects/Research_Project-191406/isabel/RRBS_new/J20_coldata_RRBS.csv", stringsAsFactors=FALSE)
+  rTg4510 = read.csv(paste0(rootDir, "0_metadata/Tg4510_coldata_RRBS.csv"), stringsAsFactors=FALSE),
+  J20 = read.csv(paste0(rootDir, "0_metadata/J20_coldata_RRBS.csv"), stringsAsFactors=FALSE)
 )
 pheno <- lapply(pheno, function(x) x %>% mutate(Age_months = factor(Age_months), Genotype = factor(Genotype, levels = c("WT","TG"))))
 
@@ -63,7 +52,7 @@ rTg4510_rrbs_pathology = read.csv(paste0(dirnames$output,"rTg4510_rrbs_pathology
 Ank1PathologyDMPs <- rTg4510_rrbs_pathology[rTg4510_rrbs_pathology$ChIPseeker_GeneSymbol == "Ank1",c("Position")]
 
 # pyrosequencing data: Ank1
-source("/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/8_Pyro_assays/pyro.config.R")
+source(paste0(scriptDir, "8_Pyro_assays/pyro.config.R"))
 
 # Ank1 reference gtf 
 # subsetted Ank1 annotations from M22 reference GENCODE gtf
@@ -71,7 +60,7 @@ Ank1refGtf <- "/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/references/a
 Ank1refGtf <- as.data.frame(rtracklayer::import(Ank1refGtf))
 
 # Table of Ank2 DMPs manually created and uploaded
-Ank1DMP <- read.csv("/gpfs/mrc0/projects/Research_Project-MRC148213/sl693/scripts/rrbs-ad-mice/0_PaperFigs/otherInput/Ank1DmpPositions.csv") %>% 
+Ank1DMP <- read.csv(paste0(scriptDir, "0_PaperFigs/otherInput/Ank1DmpPositions.csv")) %>% 
   mutate(start = as.numeric(start), end = as.numeric(end))
 Ank1DMP <- distinct(Ank1DMP)
 
@@ -121,7 +110,7 @@ ggtranscript_plot <- function(gexons, intron=TRUE){
 
 ## ------------ p1: heatmap ------------
 
-source(paste0(dirnames$script, "4_HumanGeneListComparisons/4_compGenesSim_txtFiles.R"))
+source(paste0(scriptDir, "4_HumanGeneListComparisons/4_compGenesSim_txtFiles.R"))
 p1 <- compGenes(dirnames$humanAnnot)
 
 
