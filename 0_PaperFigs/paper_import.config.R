@@ -77,20 +77,15 @@ sigResArrayHIP$J20$PathologyCommonInteraction <- sigResArrayHIP$J20$Pathology[si
 ## ------ human comparisons -----
 
 # human significant DMPs
+humanTauGeneList <- read.csv(paste0(dirnames$humanAnnot,"Shireby2022Braak_geneList.txt"), stringsAsFactors = F, header = F)[[1]]
+humanAmyloidGeneList <- read.csv(paste0(dirnames$humanAnnot,"Shireby2022Thal_geneList.txt"), stringsAsFactors = F, header = F)[[1]]
 humanAllGeneList <- read.csv(paste0(dirnames$humanAnnot,"Shireby2022Meta_geneList.txt"), stringsAsFactors = F, header = F)[[1]]
 humanDMPres <- read.csv(paste0(dirnames$humanAnnot, "GShireby2022_S8.csv"), header = T) %>% 
   mutate(UCSC.Nearest.Gene = gsub("ANK1;MIR486", "ANK1", UCSC.Nearest.Gene),
-         UCSC.Nearest.Gene = gsub("CDH23;C10orf54", "CDH23", UCSC.Nearest.Gene))
+         UCSC.Nearest.Gene = gsub("CDH23;C10orf54", "CDH23", UCSC.Nearest.Gene)) %>% 
+  mutate(humanPosition = paste0("chr",CHR,":", BP)) %>%
+  dplyr::select(humanPosition,Effect_fixed....,P_fixed,UCSC.Nearest.Gene)
 
 # overlap genes
-rTg4510HumanGenes <- intersect(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$PathologyCommonInteraction$ChIPseeker_GeneSymbol),humanAllGeneList)
-J20HumanGenes <- intersect(c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol,sigRes$J20$PathologyCommonInteraction$ChIPseeker_GeneSymbol),humanAllGeneList)
-
-# ECX rTg4510 and J20 overlap with human
-sigRes$rTg4510_Human <- dplyr::bind_rows(sigRes$rTg4510$Genotype,sigRes$rTg4510$PathologyCommonInteraction) %>% 
-  filter(ChIPseeker_GeneSymbol %in% rTg4510HumanGenes) 
-sigRes$rTg4510_Human <- merge(sigRes$rTg4510_Human, mouse2human, all.x = T, by.x = "ChIPseeker_GeneSymbol", by.y = "mouse")
-
-sigRes$J20_Human <- dplyr::bind_rows(sigRes$J20$Genotype,sigRes$J20$PathologyCommonInteraction) %>% 
-  filter(ChIPseeker_GeneSymbol %in% J20HumanGenes) 
-sigRes$J20_Human <- merge(sigRes$J20_Human, mouse2human, all.x = T, by.x = "ChIPseeker_GeneSymbol", by.y = "mouse")
+rTg4510HumanGenes <- intersect(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol),humanAllGeneList)
+J20HumanGenes <- intersect(c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol,sigRes$J20$Pathology$ChIPseeker_GeneSymbol),humanAllGeneList)
