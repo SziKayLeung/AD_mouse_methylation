@@ -114,6 +114,30 @@ combinedSigResults <- list(
   J20_HIP = combine_sig_genotype_pathology(sigResArrayHIP$J20$Genotype, sigResArrayHIP$J20$Pathology, tissue = "HIP")
 )
 
+
+# common sites between rTg4510 and J20 Genotype
+commonSitesrTg4510Genotype <- sigRes$rTg4510$Genotype[sigRes$rTg4510$Genotype$Position %in% intersect(sigRes$rTg4510$Genotype$Position, sigRes$J20$Genotype$Position),] %>% 
+  dplyr::rename("rTg4510_P.value_Genotype" = "P.value_Genotype",
+                "rTg4510_FDR_adj_Genotype" = "FDR_adj_Genotype",
+                "rTg4510_BetaSize_Genotype" = "BetaSize_Genotype",
+                "rTg4510_delta" = "delta",
+                "rTg4510_directionTG" = "directionTG") %>% 
+  mutate(rTg4510_directionTG = ifelse(rTg4510_BetaSize_Genotype < 0, "down", "up"))
+
+commonSitesJ20Genotype <- sigRes$J20$Genotype[sigRes$J20$Genotype$Position %in% intersect(sigRes$rTg4510$Genotype$Position, sigRes$J20$Genotype$Position),] %>% 
+  dplyr::rename("J20_P.value_Genotype" = "P.value_Genotype",
+                "J20_FDR_adj_Genotype" = "FDR_adj_Genotype",
+                "J20_BetaSize_Genotype" = "BetaSize_Genotype",
+                "J20_delta" = "delta",
+                "J20_directionTG" = "directionTG") %>%
+  mutate(J20_directionTG = ifelse(J20_BetaSize_Genotype < 0, "down", "up"))
+
+commonSitesGenotype <- merge(commonSitesrTg4510Genotype %>% dplyr::select(Position, Platform, cpg, contains("rTg4510")), 
+      commonSitesJ20Genotype %>% dplyr::select(-Platform,-cpg,-InteractionEffect,-meanWT,-meanTG), by = "Position") %>% 
+  mutate(ConsistentDirection = ifelse(rTg4510_directionTG == J20_directionTG, TRUE, FALSE)) %>% 
+  dplyr::select(-rTg4510_directionTG, -J20_directionTG)
+
+
 # ECX rTg4510 and J20 overlap with human
 sigRes$rTg4510_Human <- combinedSigResults$rTg4510_ECX %>% filter(ChIPseeker_GeneSymbol %in% rTg4510HumanGenes) %>%
   merge(., mouse2human, all.x = T, by.x = "ChIPseeker_GeneSymbol", by.y = "mouse")
@@ -195,7 +219,8 @@ setdiff(sigRes$J20$PathologyCommonInteraction$Position, GO_background_sites)
 
 extract_postions_as_bed(GO_background_sites, paste0(dirnames$GO,"rTg4510_PromoterRRBSArray_ECX_coordinates.bed"))
 
-
+# common sites between rTg4510 and J20
+write.csv(commonSitesGenotype, paste0(dirnames$paper,"/tables/Common_Significant_Sites_Genotype.csv"), quote = T)
 
 # common sites between mouse and human
 write.csv(human_rTg4510, paste0(dirnames$paper,"/tables/Human_rTg4510.csv"), quote = T, row.names = F)
