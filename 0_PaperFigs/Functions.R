@@ -263,7 +263,7 @@ plot_merged_manhattan <- function(mergedManhattanPlot, annoRRBS, annoArray, term
   return(p)
 }
 
-plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transcript, age = 0, boxplot = FALSE, colour = FALSE,
+plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transcript, boxplot = FALSE, colour = FALSE,
                              pathology = FALSE, position = NULL){
   
   if(isFALSE(colour)){
@@ -282,12 +282,9 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
   # split to get the coordinates from the position <chrX:YY>
   dat <- dat %>% tibble::rownames_to_column(., var = "position") %>% reshape2::melt(variable.name = "sample",value.name = "methylation", id = "position")
   dat <- merge(dat, phenotypeFile, by.y = 0, by.x = "sample")
-  dat$coordinate <- str_split_i(dat$position,":",2)
-  dat$chr <- str_split_i(dat$position,":",1)
+  dat$coordinate <- stringr::str_split_i(dat$position,":",2)
+  dat$chr <- stringr::str_split_i(dat$position,":",1)
   
-  if(age != 0){
-    dat <- dat %>% filter(Age_months == age)
-  }
   
   # extract the transcript of interest from txdb
   gr <- subset(transcripts(txdb), tx_name == transcript)
@@ -342,8 +339,6 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
       p <- plot_DMP(betaMatrix, phenotypeFile, position = unique(as.character(dat$position)), pathology = TRUE, model = colour) 
     }
   }
-  
- 
   
   output <- plot_grid(gene_track,p,nrow=2, rel_heights = c(0.3,0.7))
   return(output)
@@ -404,15 +399,12 @@ plot_pyro_rrbs_corr <- function(inputPyro, inputPyroPos, rrbsBeta, inputPhenotyp
 
 ## ------ epigenetic clock -----
 
-plot_clock <- function(clock, tissue, model){
+plot_clock <- function(clock, tissue, model, boxplot = TRUE){
   
-  if(tissue == "ECX"){
-    y.var <- sym("DNAmAgeClockCortex")
-    y.lab <- "DNAm Age Clock Cortex"
-  } else {
-    y.var <- sym("DNAmAgeClockBrain")
-    y.lab <- "DNAm Age Clock Brain"
-  }
+
+  y.var <- sym("DNAmAgeClockCortex")
+  y.lab <- "DNAm Age Clock Cortex"
+
   
   if(model %in% c("rTg4510","Tg4510")){
     colour <- label_colour("Tg4510")
@@ -420,16 +412,59 @@ plot_clock <- function(clock, tissue, model){
     colour <- label_colour("J20")
   }
   
-  p <- ggplot(clock, aes(x = as.factor(Age_months), y = !! y.var, colour = Genotype)) + 
-    geom_boxplot(outliers = FALSE) +
-    geom_point(position=position_jitterdodge()) +
-    labs(x = "Age (Months)", y = y.lab, colour = "Genotype") +
-    theme_classic() +
-    scale_colour_manual(values = c("black",colour)) 
+  if(!isFALSE(boxplot)){
+    p <- ggplot(clock, aes(x = as.factor(Age_months), y = !! y.var, colour = Genotype)) + 
+      geom_boxplot(outliers = FALSE) +
+      geom_point(position=position_jitterdodge()) +
+      labs(x = "Age (Months)", y = y.lab, colour = "Genotype") +
+      theme_classic() +
+      scale_colour_manual(values = c("black",colour)) 
+  }else{
+    p <- ggplot(clock, aes(x = Age_months, y = DNAmAgeClockCortex, colour = Genotype)) + geom_point() +
+      theme_classic() + labs(x = "Age", y = "DNAm Age Clock Cortex", colour = "Genotype") +
+      geom_smooth(method='lm', formula= y~x, se = FALSE) +
+      scale_colour_manual(values = c("black",colour)) 
+  }
+
   
   return(p)
   
 }
+
+
+clock_acceleration <- function(clock, mouse, tissue){
+  
+  if(mouse %in% c("rTg4510","Tg4510")){
+    colour <- label_colour("Tg4510")
+  }else{
+    colour <- label_colour("J20")
+  }
+  
+  if(tissue == "ECX"){
+    x.var <- sym("Pathology_ECX")
+    dat <- merge(clock, phenotype_path[[mouse]], by.y = "Sample_ID_ECX", by.x = "SampleID")
+  }else{
+    x.var <- sym("Pathology_HIP")
+    dat <- merge(clock, phenotype_path[[mouse]], by.y = "Sample_ID_HIP", by.x = "SampleID")
+  }
+  
+  p <- dat %>% mutate(rate =  DNAmAgeClockCortex/Age) %>% 
+    ggplot(., aes(x = !! sym(x.var), y = rate, colour = Genotype.y)) + geom_point() +
+    labs(x = paste0("Pathology in ", tissue), y = "Acceleration age", colour = "Genotype") +
+    theme_classic() +
+    scale_colour_manual(values = c(colour, "black")) 
+  
+  return(p)
+}
+
+
+clock_stats <- function(clock, age, modelTissue){
+  print(paste0("Clock on ", modelTissue, " at ", age, " months"))
+  print(with(clock %>% filter(Age_months == age), shapiro.test(DNAmAgeClockCortex[Genotype == "TG"])))
+  print(with(clock %>% filter(Age_months == age), shapiro.test(DNAmAgeClockCortex[Genotype == "WT"])))
+  print(t.test(DNAmAgeClockCortex ~ Genotype, data = clock %>% filter(Age_months == age)))
+}
+
 
 
 ## ------ GO -----
