@@ -198,7 +198,11 @@ for(pos in c("Pos1Meth", "Pos2Meth", "Pos3Meth", "Pos4Meth")){
 
 ## ----- human ----
 
-message("common rTg4510, J20 and human gene: ", intersect(rTg4510HumanGenes,J20HumanGenes))
+intersect(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol), humanTauGeneList)
+intersect(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol), humanAllGeneList)
+message("common rTg4510, J20 and human gene: ")
+intersect(J20HumanGenes, rTg4510HumanGenes)
+
 
 ## ------ gene ontology results
 

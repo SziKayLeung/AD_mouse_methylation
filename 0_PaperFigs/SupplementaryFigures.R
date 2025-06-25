@@ -314,60 +314,44 @@ plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP,
 plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr2:37946161", pathology = TRUE)
 plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr2:37946161", interaction = TRUE)
 
-           humanAllGeneList),
-  category.names = c("rTg4510_ECX","rTg4510_HIP", "J20_ECX", "J20_HIP","Human"),
-  fill = c(label_colour("rTg4510"), alpha(label_colour("rTg4510"),0.2), label_colour("J20"),alpha(label_colour("J20"),0.2),"yellow"),
-  filename = NULL
-))
-
 
 # human comparisons
+# ECX
+sigRes$rTg4510 <- lapply(sigRes$rTg4510, function(x) x %>% filter(ChIPseeker_GeneSymbol != "NA"))
+sigRes$J20 <- lapply(sigRes$J20, function(x) x %>% filter(ChIPseeker_GeneSymbol != "NA"))
+pHuman1 <- venn.diagram(
+  x = list(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol),
+           c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol, sigRes$J20$Pathology$ChIPseeker_GeneSymbol), 
+           humanAllGeneList),
+  category.names = c("rTg4510","J20","Human"),
+  fill = c(label_colour("rTg4510"), label_colour("J20"),"yellow"),
+  filename = NULL
+)
+
+pHuman2 <- venn.diagram(
+  x = list(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol),
+           humanTauGeneList),
+  category.names = c("rTg4510", "Human"),
+  fill = c(label_colour("rTg4510"), "yellow"),
+  filename = NULL
+)
+
+pHuman3 <- venn.diagram(
+  x = list(c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol,sigRes$J20$Pathology$ChIPseeker_GeneSymbol),
+           humanAmyloidGeneList),
+  category.names = c("J20_ECX", "Human"),
+  fill = c(label_colour("J20"), "yellow"),
+  filename = NULL
+)
+
+plot_grid(pHuman1, plot_grid(pHuman2,pHuman3, ncol = 1, labels = c("ii","iii")), labels = c("i"))
+
 Prdm16_J20 <- plotGeneTrackDMP(sigRes$J20$Genotype, sigBeta$J20$Genotype, phenotype$J20, "Prdm16", "ENSMUST00000030902.12", colour = "J20", boxplot = TRUE)
 Prdm16_rTg4510 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Prdm16", "ENSMUST00000030902.12", colour = "rTg4510", boxplot = TRUE)
-plot_grid(Prdm16_J20, Prdm16_rTg4510, nrow = 1)
-sigRes$J20$Genotype[sigRes$J20$Genotype$ChIPseeker_GeneSymbol == "Prdm16",]
-sigRes$rTg4510$Genotype[sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol == "Prdm16",]
-
+plot_grid(Prdm16_rTg4510,Prdm16_J20, labels = c("i","ii"), nrow = 1, scale = 0.95)
 plot_DMP(sigBeta$rTg4510$Genotype, phenotype$rTg4510, position = c("chr4:154346846"))
 
-dat <- humanDMPres %>% mutate(humanPosition = paste0("chr",CHR,":", BP)) %>% 
-  dplyr::select(humanPosition,Effect_fixed....,P_fixed,UCSC.Nearest.Gene) %>%  
-  full_join(sigRes$rTg4510_Human[,c("Position","FDR_adj_Genotype","delta","human")], 
-            ., by = c("human" = "UCSC.Nearest.Gene"), relationship = "many-to-many") %>%
-  `colnames<-`(c("mousePosition","mouseFDRGenotype","mouseESGenotype","humanGene","humanPosition","humanES","humanPvalue")) %>%
-  dplyr::filter(mousePosition != "NA") %>%
-  mutate(labels = paste0(mousePosition,",", humanPosition))
-length(unique(dat$mousePosition))
-length(unique(dat$humanPosition))
-ggplot(dat, aes(x = mouseESGenotype, y = humanES, colour = humanGene, label = humanGene)) + 
-  geom_point(size = 3) + 
-  geom_text_repel(show.legend = FALSE) +
-  geom_hline(yintercept=0, linetype = "dotted") +
-  geom_vline(xintercept=0, linetype = "dotted") +
-  theme_classic() +
-  labs(x = "Effect size in rTg4510 TG vs WT", y = "Effect size in human AD studies") +
-  scale_colour_discrete(name = "Gene")
-
-dat <- humanDMPres %>% mutate(humanPosition = paste0("chr",CHR,":", BP)) %>% 
-  dplyr::select(humanPosition,Effect_fixed....,P_fixed,UCSC.Nearest.Gene) %>%  
-  full_join(sigRes$J20_Human[,c("Position","FDR_adj_Genotype","delta","human")], 
-            ., by = c("human" = "UCSC.Nearest.Gene"), relationship = "many-to-many") %>%
-  `colnames<-`(c("mousePosition","mouseFDRGenotype","mouseESGenotype","humanGene","humanPosition","humanES","humanPvalue")) %>%
-  dplyr::filter(mousePosition != "NA") %>%
-  mutate(labels = paste0(mousePosition,",", humanPosition))
-length(unique(dat$mousePosition))
-length(unique(dat$humanPosition))
-sigRes$J20$Genotype[sigRes$J20$Genotype$ChIPseeker_GeneSymbol == "Tspan14",]
-View(dat)
-ggplot(dat, aes(x = mouseESGenotype, y = humanES, colour = humanGene, label = humanGene)) + 
-  geom_point(size = 3) + 
-  geom_text_repel(show.legend = FALSE) +
-  geom_hline(yintercept=0, linetype = "dotted") +
-  geom_vline(xintercept=0, linetype = "dotted") +
-  theme_classic() +
-  labs(x = "Effect size in rTg4510 TG vs WT", y = "Effect size in human AD studies") +
-  scale_colour_discrete(name = "Gene")
-
+# top-ranked J20 vs human
 Tspan14 <- plotGeneTrackDMP(sigResults=sigRes$J20$Genotype, betaMatrix=sigBeta$J20$Genotype, phenotypeFile=phenotype$J20, 
                  gene="Tspan14", transcript="ENSMUST00000047652.5", colour = "J20", boxplot = TRUE,
                  position = "chr14:40966816")

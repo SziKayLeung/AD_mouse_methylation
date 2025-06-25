@@ -114,6 +114,43 @@ combinedSigResults <- list(
   J20_HIP = combine_sig_genotype_pathology(sigResArrayHIP$J20$Genotype, sigResArrayHIP$J20$Pathology, tissue = "HIP")
 )
 
+# ECX rTg4510 and J20 overlap with human
+sigRes$rTg4510_Human <- combinedSigResults$rTg4510_ECX %>% filter(ChIPseeker_GeneSymbol %in% rTg4510HumanGenes) %>%
+  merge(., mouse2human, all.x = T, by.x = "ChIPseeker_GeneSymbol", by.y = "mouse")
+sigRes$J20_Human <- combinedSigResults$J20_ECX %>% filter(ChIPseeker_GeneSymbol %in% J20HumanGenes) %>%
+  merge(., mouse2human, all.x = T, by.x = "ChIPseeker_GeneSymbol", by.y = "mouse")
+
+merge_human_mouse <- function(sigResHuman){
+  
+  dat <- merge(sigResHuman, humanDMPres, by.x = c("human"), by.y = "UCSC.Nearest.Gene", relationship = "many-to-many") %>% 
+    mutate(HumanTauPathology = ifelse(ChIPseeker_GeneSymbol %in% humanTauGeneList,"TRUE","FALSE"),
+           HumanAmyloidPathology = ifelse(ChIPseeker_GeneSymbol %in% humanAmyloidGeneList,"TRUE","FALSE"),) %>%
+    dplyr::select("ChIPseeker_GeneSymbol", "Position","human","humanPosition", "HumanTauPathology", "HumanAmyloidPathology",
+                  "GenotypeEffect","PathologyEffect","FDR_adj_Genotype","BetaSize_Genotype","FDR_adj_Pathology","BetaSize_Pathology",
+                  "P_fixed","Effect_fixed....") %>% 
+    `colnames<-`(c("Mouse_GeneSymbol", "Mouse_Position", "Human_GeneSymbol","Human_Position", "HumanTauPathology","HumanAmyloidPathology",
+                   "Mouse_GenotypeEffect","Mouse_PathologyEffect","Mouse_FDR_Genotype","Mouse_BetaSize_Genotype","Mouse_FDR_Pathology","Mouse_BetaSize_Pathology",
+                   "Human_P","Human_BetaSize")) %>%
+    arrange(Human_FDR) %>% 
+    dplyr::filter(Mouse_Position != "NA")
+  
+  return(dat)
+  
+}
+
+human_rTg4510 <- merge_human_mouse(sigRes$rTg4510_Human)
+human_J20 <- merge_human_mouse(sigRes$J20_Human)
+
+# rationale for selecting Prdm16: most sites across rTg4510 and J20 
+rbind(human_J20, human_rTg4510) %>% filter(Mouse_GeneSymbol %in% intersect(J20HumanGenes, rTg4510HumanGenes)) %>%
+  .[,c("Mouse_Position","Mouse_GeneSymbol")] %>% 
+  distinct(.) %>% group_by(Mouse_GeneSymbol) %>% tally()
+
+# deep dive into Prmd16 in J20 and rTg4510
+rbind(human_J20 %>% mutate(Mousemodel = "J20"), human_rTg4510 %>% mutate(Mousemodel = "rTg4510")) %>% filter(Mouse_GeneSymbol == "Prdm16") %>% 
+  dplyr::select(contains("Mouse")) %>% 
+  distinct(.)
+
 ## ------------------- table output ------------------
 
 write.csv(rTg4510_ECX_sigResultsDMPs$Genotype, paste0(dirnames$paper,"/tables/rTg4510_ECX_sigResultsDMPs_Genotype.csv"), quote = T)
@@ -160,3 +197,6 @@ extract_postions_as_bed(GO_background_sites, paste0(dirnames$GO,"rTg4510_Promote
 
 
 
+# common sites between mouse and human
+write.csv(human_rTg4510, paste0(dirnames$paper,"/tables/Human_rTg4510.csv"), quote = T, row.names = F)
+write.csv(human_J20, paste0(dirnames$paper,"/tables/Human_J20.csv"), quote = T, row.names = F)
