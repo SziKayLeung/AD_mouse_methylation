@@ -1,6 +1,7 @@
 rootDir = "/lustre/projects/Research_Project-191406"
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
-source(paste0(scriptDir, "import.config"))
+scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
+output = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/1_Projects/AD_Mouse_Model/rTg4510_mice_methylation_paper/0_ZenOutput/PaperOutput/"
+source(paste0(scriptDir, "import.config.R"))
 source(paste0(scriptDir, "0_PaperFigs/Functions.R"))
 
 sigBeta <- list(
@@ -36,6 +37,10 @@ anno_rrbs_all <- get(load(file = paste0(dirnames$annotated, "/rrbs/rrbs_annoAllP
 # all results
 rTg4510_rrbs_results <- get(load( file = paste0(dirnames$differential, "/rrbs/rTg4510_betaResultsDMPs.RData")))
 J20_rrbs_results <- get(load( file = paste0(dirnames$differential, "/rrbs/J20_betaResultsDMPs.RData")))
+rTg4510_array_results <- get(load( file = paste0(dirnames$differential, "/array/rTg4510_array_ECX_allResultsDMPs.RData")))
+rTg4510_HIP_array_results <- get(load( file = paste0(dirnames$differential, "/array/rTg4510_array_HIP_allResultsDMPs.RData")))
+J20_array_results <- get(load( file = paste0(dirnames$differential, "/array/J20_array_ECX_allResultsDMPs.RData")))
+J20_HIP_array_results <- get(load( file = paste0(dirnames$differential, "/array/J20_array_HIP_allResultsDMPs.RData")))
 
 # significant results
 rTg4510_rrbs_sig <- get(load(file = paste0(dirnames$annotated, "/rrbs/rTg4510_rrbs_annoSigResultsDMPs.RData")))
@@ -62,9 +67,14 @@ progressiveSites <- list(
 sigRes$rTg4510$PathologyCommonInteraction <- sigRes$rTg4510$Pathology[sigRes$rTg4510$Pathology$Position %in% progressiveSites$rTg4510, ]
 sigRes$J20$PathologyCommonInteraction <- sigRes$J20$Pathology[sigRes$J20$Pathology$Position %in% progressiveSites$J20, ]
 
+# combined
+rTg4510_ECX_sigResultsDMPs <- get(load(paste0(dirnames$annotated,"/final/rTg4510_ECX_sigResultsDMPs.RData")))
+J20_ECX_sigResultsDMPs <- get(load(paste0(dirnames$annotated,"/final/J20_ECX_sigResultsDMPs.RData")))
+
 # common significant DMPs between ECX and HIP
 commonECXHIPSites <- list(
   rTg4510_genotype = intersect(sigResArrayECX$rTg4510$Genotype$Position,sigResArrayHIP$rTg4510$Genotype$Position),
+  rTg4510_pathology = intersect(sigResArrayECX$rTg4510$Pathology$Position,sigResArrayHIP$rTg4510$Pathology$Position),
   rTg4510_interaction_pathology_ECX =  intersect(sigResArrayECX$rTg4510$GenotypeAge$Position, sigResArrayECX$rTg4510$Pathology$Position),
   rTg4510_interaction_pathology_HIP = intersect(sigResArrayHIP$rTg4510$GenotypeAge$Position, sigResArrayHIP$rTg4510$Pathology$Position),
   J20_interaction_pathology_HIP = intersect(sigResArrayHIP$J20$GenotypeAge$Position, sigResArrayHIP$J20$Pathology$Position)
