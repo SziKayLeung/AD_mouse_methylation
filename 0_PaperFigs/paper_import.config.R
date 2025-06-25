@@ -69,8 +69,8 @@ commonECXHIPSites <- list(
   rTg4510_interaction_pathology_HIP = intersect(sigResArrayHIP$rTg4510$GenotypeAge$Position, sigResArrayHIP$rTg4510$Pathology$Position),
   J20_interaction_pathology_HIP = intersect(sigResArrayHIP$J20$GenotypeAge$Position, sigResArrayHIP$J20$Pathology$Position)
 )
-hip_specific <- setdiff(c(sigResArrayHIP$rTg4510$Genotype$Position, commonECXHIPSites$rTg4510_interaction_pathology_HIP),
-                        c(sigResArrayECX$rTg4510$Genotype$Position, commonECXHIPSites$rTg4510_interaction_pathology_ECX))
+hip_specific <- unique(setdiff(c(sigResArrayHIP$rTg4510$Genotype$Position, sigResArrayHIP$rTg4510$Pathology$Position),
+                        c(sigResArrayECX$rTg4510$Genotype$Position, sigResArrayECX$rTg4510$Pathology$Position)))
 sigResArrayHIP$rTg4510$PathologyCommonInteraction <- sigResArrayHIP$rTg4510$Pathology[sigResArrayHIP$rTg4510$Pathology$Position %in% commonECXHIPSites$rTg4510_interaction_pathology_HIP,]
 sigResArrayHIP$J20$PathologyCommonInteraction <- sigResArrayHIP$J20$Pathology[sigResArrayHIP$J20$Pathology$Position %in% commonECXHIPSites$J20_interaction_pathology_HIP,]
 

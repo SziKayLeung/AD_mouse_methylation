@@ -212,16 +212,16 @@ plot_grid(Ncam2, Zmiz1, Zfp518b, Prmt8, scale = 0.9, labels = c("i","ii","iii","
 
 # venn diagram of hippocampus vs entorhinal cortex
 HipECXVennrTg4510 <- plot_grid(venn.diagram(
-  x = list(rTg4510_array_sig$ECX$Genotype$position,intersect(rTg4510_array_sig$ECX$Interaction$position, rTg4510_array_sig$ECX$Pathology$position),  
-           rTg4510_array_sig$HIP$Genotype$position, intersect(rTg4510_array_sig$HIP$Interaction$position, rTg4510_array_sig$HIP$Pathology$position)),
+  x = list(rTg4510_array_sig$ECX$Genotype$position, rTg4510_array_sig$ECX$Pathology$position,  
+           rTg4510_array_sig$HIP$Genotype$position, rTg4510_array_sig$HIP$Pathology$position),
   category.names = c("ECX_Genotype" , "ECX_Pathology", "HIP_Genotype", "HIP_Pathology"),
   fill = pastelColours,
   filename = NULL
 ))
 
 HipECXVennJ20 <- plot_grid(venn.diagram(
-  x = list(J20_array_sig$ECX$Genotype$position,intersect(J20_array_sig$ECX$Interaction$position, J20_array_sig$ECX$Pathology$position),  
-           J20_array_sig$HIP$Genotype$position, intersect(J20_array_sig$HIP$Interaction$position, J20_array_sig$HIP$Pathology$position)),
+  x = list(J20_array_sig$ECX$Genotype$position, J20_array_sig$ECX$Pathology$position,  
+           J20_array_sig$HIP$Genotype$position, J20_array_sig$HIP$Pathology$position),
   category.names = c("ECX_Genotype" , "ECX_Pathology", "HIP_Genotype", "HIP_Pathology"),
   fill = pastelColours,
   filename = NULL
@@ -276,18 +276,18 @@ commonECXHIPrTg4510plots <- list(
 plot_grid(plotlist = commonECXHIPrTg4510plots, labels = c("i","ii"), scale = 0.9)
 
 HIPrTg4510plots <- list(
-  Srf = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                          ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr17:46551588", 
-                          gene = "Srf"),
+  Pxk = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                          ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr14:8146212", 
+                          gene = "Pxk"),
   Mef2c = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
                     ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:83504232", 
                     gene = "Mef2c"),
-  Faf1 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                    ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr4:109806599", pathology = TRUE, 
-                    gene = "Faf1"),
-  Tmem161b = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                             ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:84285414", pathology = TRUE, 
-                             gene = "Tmem161b")
+  Agbl5 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                    ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr5:30890202", pathology = TRUE, 
+                    gene = "Agbl5"),
+  Meis2 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                             ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr2:116018971", pathology = TRUE, 
+                             gene = "Meis2")
 )
 plot_grid(plotlist = HIPrTg4510plots, labels = c("i","ii","iii","iv"), scale = 0.9)
 
@@ -298,17 +298,14 @@ HIPJ20plots <- list(
   Mctp1 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
                             ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:76810803", 
                             gene = "Mctp1", model = "J20"),
-  Msh2 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr17:87746301", 
-                            gene = "Msh2", model = "J20", pathology = TRUE),
-  Lrn3 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                           ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr12:41486019", pathology = TRUE, 
-                           gene = "Lrn3", model = "J20"),
-  Mir99a = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                               ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr16:77594288", pathology = TRUE, 
-                               gene = "Mir99a", model = "J20")
+  Sox4 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:28949481", 
+                            gene = "Sox4", model = "J20", pathology = TRUE),
+  Cetn3 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
+                           ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:81828611", pathology = TRUE, 
+                           gene = "Cetn3", model = "J20")
 )
-plot_grid(plotlist = HIPJ20plots[1:4], labels = c("i","ii","iii","iv"), scale = 0.9)
+plot_grid(plotlist = HIPJ20plots, labels = c("i","ii","iii","iv"), scale = 0.9)
 
 
 # hippocampus plots
@@ -317,13 +314,6 @@ plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP,
 plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr2:37946161", pathology = TRUE)
 plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr2:37946161", interaction = TRUE)
 
-plot_grid(venn.diagram(
-  x = list(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$PathologyCommonInteraction$ChIPseeker_GeneSymbol),
-           c(sigResArrayHIP$rTg4510$Genotype$ChIPseeker_GeneSymbol, 
-             intersect(sigResArrayHIP$rTg4510$GenotypeAge$ChIPseeker_GeneSymbol, sigResArrayHIP$rTg4510$Pathology$ChIPseeker_GeneSymbol)),
-           c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol, sigRes$J20$PathologyCommonInteraction$ChIPseeker_GeneSymbol), 
-           c(sigResArrayHIP$J20$Genotype$ChIPseeker_GeneSymbol, 
-             intersect(sigResArrayHIP$J20$GenotypeAge$ChIPseeker_GeneSymbol, sigResArrayHIP$J20$Pathology$ChIPseeker_GeneSymbol)),
            humanAllGeneList),
   category.names = c("rTg4510_ECX","rTg4510_HIP", "J20_ECX", "J20_HIP","Human"),
   fill = c(label_colour("rTg4510"), alpha(label_colour("rTg4510"),0.2), label_colour("J20"),alpha(label_colour("J20"),0.2),"yellow"),

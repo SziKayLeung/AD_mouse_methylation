@@ -116,18 +116,19 @@ sigRes$rTg4510$Genotype %>% filter(ChIPseeker_GeneSymbol == "Prnp")
 
 ## ------ changes in Hippocampus vs ECX (array)
 
-message("Total number of signficant DMPs associated with tau in rTg4510 TG vs WT mice (genotype) in hippocampus: ", length(rTg4510_array_sig$HIP$Genotype$position))
+message("Total number of signficant DMPs associated with tau in rTg4510 TG vs WT mice (genotype) in hippocampus: ", length(unique(rTg4510_array_sig$HIP$Genotype$position)))
 message("Number of signficant genotype in hippocampus that were significant in ECX rTg4510: ", length(commonECXHIPSites$rTg4510_genotype))
 message("Signficiant genotype-associated DMPs in ECX and HIP")
 rTg4510_array_sig$HIP$Genotype[rTg4510_array_sig$HIP$Genotype$position %in% commonECXHIPSites$rTg4510_genotype,]
-message("Number of unique genotype DMPs in hippocampus:", nrow(sigResArrayHIP$rTg4510$Genotype[sigResArrayHIP$rTg4510$Genotype$Position %in% hip_specific,]))
-message("Number of genes associated with unique genotype DMPs in hippocampus: ", 
-        length(unique(sigResArrayHIP$rTg4510$Genotype[sigResArrayHIP$rTg4510$Genotype$Position %in% hip_specific,"ChIPseeker_GeneSymbol"])))
-message("Number of unique pathology DMPs in hippocampus:", 
-        nrow(sigResArrayHIP$rTg4510$PathologyCommonInteraction[sigResArrayHIP$rTg4510$PathologyCommonInteraction$Position %in% hip_specific,]))
-message("Number of genes associated with unique genotype DMPs in hippocampus: ", 
-        length(unique(sigResArrayHIP$rTg4510$PathologyCommonInteraction[sigResArrayHIP$rTg4510$PathologyCommonInteraction$Position %in% hip_specific,"ChIPseeker_GeneSymbol"])))
+message("Number of unique genotype DMPs in hippocampus:", length(unique(sigResArrayHIP$rTg4510$Genotype[sigResArrayHIP$rTg4510$Genotype$Position %in% hip_specific,"Position"])))
+message("Number of unique pathology DMPs in hippocampus:", length(unique(sigResArrayHIP$rTg4510$Pathology[sigResArrayHIP$rTg4510$Pathology$Position %in% hip_specific,"Position"])))
+message("Number of unique genotype+pathology DMPs in hippocampus: ", length(hip_specific))
+message("Total number of signficant DMPs associated with tau pathology in rTg4510 TG vs WT mice (genotype) in hippocampus: ", length(unique(rTg4510_array_sig$HIP$Pathology$position)))
+message("Number of genes associated with unique genotype DMPs in hippocampus: ", length(unique(sigResArrayHIP$rTg4510$Genotype[sigResArrayHIP$rTg4510$Genotype$Position %in% hip_specific,"ChIPseeker_GeneSymbol"])))
+message("Number of genes associated with unique pathology DMPs in hippocampus: ", length(unique(sigResArrayHIP$rTg4510$Pathology[sigResArrayHIP$rTg4510$Pathology$Position %in% hip_specific,"ChIPseeker_GeneSymbol"])))
 
+message("Number of common significant sites between pathology in hippocampus and entorhinal cortex: ", 
+        length(intersect(rTg4510_array_sig$ECX$Pathology$position,rTg4510_array_sig$HIP$Pathology$position)))
 message("Number of common sites between pathology in hippocampus and genotye+pathology in entorhainl cortex: ", 
 length(intersect(sigResArrayHIP$rTg4510$PathologyCommonInteraction$Position, 
                  c(sigResArrayECX$rTg4510$Genotype$Position,                                                                       
@@ -140,6 +141,8 @@ message("Total number of DMPs from array in rTg4510, ECX & HIP: ", length(unique
   sigResArrayHIP$rTg4510$Genotype$Position, commonECXHIPSites$rTg4510_interaction_pathology_HIP))))
 
 message("Total number of DMPs from array in J20, ECX & HIP: ", length(unique(c(J20_array_sig$ECX$Genotype$position,intersect(J20_array_sig$ECX$Interaction$position, J20_array_sig$ECX$Pathology$position), J20_array_sig$HIP$Genotype$position, intersect(J20_array_sig$HIP$Interaction$position, J20_array_sig$HIP$Pathology$position)))))
+
+head(sigResArrayHIP$rTg4510$Pathology[sigResArrayHIP$rTg4510$Pathology$Position %in% commonECXHIPSites$rTg4510_pathology,])
 
 # FDR values for all ECX array  
 rTg4510_array_results$Genotype$FDR_adj_Genotype <- p.adjust(rTg4510_array_results$Genotype[,"PrZ.GenotypeTG"], method = "fdr")

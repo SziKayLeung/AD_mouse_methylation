@@ -20,20 +20,18 @@ J20_ECX_sigResultsDMPs$Pathology <- J20_ECX_sigResultsDMPs$Pathology %>% mutate(
   InteractionEffect = ifelse(Position %in% J20_ECX_sigResultsDMPs$GenotypeAge$Position, TRUE, FALSE)
 )
 
+# if DMPs in HIP are in ECX
+sigResArrayHIP$rTg4510 <- lapply(sigResArrayHIP$rTg4510, function(x) x %>%
+         mutate(ECX_Genotype = ifelse(Position %in% sigResArrayECX$rTg4510$Genotype$Position, TRUE, FALSE),
+                ECX_Pathology = ifelse(Position %in% sigResArrayECX$rTg4510$Pathology$Position, TRUE, FALSE)
+         ))
 
-sigResArrayHIP$rTg4510$Genotype <- sigResArrayHIP$rTg4510$Genotype %>% 
-  mutate(ECX = ifelse(Position %in% c(sigResArrayECX$rTg4510$Genotype$Position,intersect(sigResArrayECX$rTg4510$GenotypeAge$Position,sigResArrayECX$rTg4510$Pathology$Position)), TRUE, FALSE))
-
-sigResArrayHIP$rTg4510$Pathology <- sigResArrayHIP$rTg4510$Pathology %>% 
-  mutate(ECX = ifelse(Position %in% c(sigResArrayECX$rTg4510$Genotype$Position,intersect(sigResArrayECX$rTg4510$GenotypeAge$Position,sigResArrayECX$rTg4510$Pathology$Position)), TRUE, FALSE))
-
-sigResArrayHIP$J20$Genotype <- sigResArrayHIP$J20$Genotype %>% 
-  mutate(ECX = ifelse(Position %in% c(sigResArrayECX$J20$Genotype$Position,intersect(sigResArrayECX$J20$GenotypeAge$Position,sigResArrayECX$J20$Pathology$Position)), TRUE, FALSE))
-
-sigResArrayHIP$J20$Pathology <- sigResArrayHIP$J20$Pathology %>% 
-  mutate(ECX = ifelse(Position %in% c(sigResArrayECX$J20$Genotype$Position,intersect(sigResArrayECX$J20$GenotypeAge$Position,sigResArrayECX$J20$Pathology$Position)), TRUE, FALSE)) 
-
-
+sigResArrayHIP$J20 <- lapply(sigResArrayHIP$J20, function(x) x %>%
+                                   mutate(ECX_Genotype = ifelse(Position %in% sigResArrayECX$J20$Genotype$Position, TRUE, FALSE),
+                                          ECX_Pathology = ifelse(Position %in% sigResArrayECX$J20$Genotype$Position, TRUE, FALSE)
+                                   ))
+       
+       
 # unique DMPs in ECX array but not in hippocampus array
 ECXrTg4510Unique2HIP <- setdiff(
   # ECX
