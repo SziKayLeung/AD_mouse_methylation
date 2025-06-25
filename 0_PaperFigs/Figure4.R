@@ -3,7 +3,7 @@ library("ggplot2")
 library("cowplot")
 suppressMessages(library("gridExtra"))
 suppressMessages(library("grid"))
-zenDir <- "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/rrbs-ad-mice/0_ZenOutput"
+zenDir <- "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/1_Projects/AD_Mouse_Model/rTg4510_mice_methylation_paper/0_ZenOutput/"
 
 
 # manhattan plots
@@ -17,19 +17,30 @@ pman2 <- plot_grid(plot_manhattan_3(cumu_ls$J20_ECX_interaction,"ECXRRBS","J20",
 
 # epigenetic clocks
 load(file = paste0(zenDir, "/5_epigeneticClock/rTg4510Clock.RData"))
-pClock1 <- ggplot(rTg4510Clocks$ECX, aes(x = Age, y = DNAmAgeClockCortex, colour = Genotype)) + geom_point() +
-  theme_classic() + labs(x = "Age", y = "DNAm Age Horvath Cortex") +
-  geom_smooth(method='lm', formula= y~x, se = FALSE) +
-  scale_colour_manual(values = c("black","#00AEC9")) + 
-  theme(legend.position = "None")
+load(file = paste0(zenDir, "/5_epigeneticClock/J20Clock.RData"))
 
+plot_grid(
+  plot_clock(rTg4510Clocks$ECX,"ECX",model="rTg4510"),
+  plot_clock(rTg4510Clocks$HIP,"HIP",model="rTg4510"),
+  plot_clock(J20Clocks$ECX,"ECX",model="J20"),
+  plot_clock(J20Clocks$HIP,"HIP",model="J20") , labels = c("A","B","C","D")
+)
 
-pClock2 <- ggplot(rTg4510Clocks$HIP, aes(x = Age, y = DNAmAgeClockBrain, colour = Genotype)) + geom_point() +
-  theme_classic() + labs(x = "Age", y = "DNAm Age Horvath Brain") +
-  geom_smooth(method='lm', formula= y~x, se = FALSE) +
-  scale_colour_manual(values = c("black","#00AEC9")) +
-  theme(legend.position = "None")
+plot_grid(
+  plot_clock(rTg4510Clocks$ECX,"ECX",model="rTg4510", boxplot = FALSE),
+  plot_clock(rTg4510Clocks$HIP,"HIP",model="rTg4510", boxplot = FALSE),
+  plot_clock(J20Clocks$ECX,"ECX",model="J20", boxplot = FALSE),
+  plot_clock(J20Clocks$HIP,"HIP",model="J20", boxplot = FALSE),
+  labels = c("A","B","C","D")
+)
 
+plot_grid(
+  clock_acceleration(rTg4510Clocks$ECX, "rTg4510", "ECX"),
+  clock_acceleration(rTg4510Clocks$HIP, "rTg4510", "HIP"),
+  clock_acceleration(J20Clocks$ECX, "J20", "ECX"),
+  clock_acceleration(J20Clocks$HIP, "J20", "HIP"),
+  labels = c("A","B","C","D")
+)
 
 # 2_simple_correlation.R
 As3mtimage <- lapply(As3mtimage, function(x) x + scale_colour_manual(values = c("#00AEC9","black")) + 
