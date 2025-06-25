@@ -54,6 +54,11 @@ pCluster = list(
 plot_grid(pCluster$rTg4510Genotype$gtable, pCluster$rTg4510Pathology$gtable)
 plot_grid(pCluster$J20Genotype$gtable, pCluster$J20Pathology$gtable)
 
+# magniture of effect size in J20 vs rTg4510  
+ggplot(comparison_effect_size, aes(x = BetaSize_Genotype, fill = model)) + geom_density(alpha = 0.3) +
+  theme_classic() +
+  labs(x = "Effect size (Genotype)", y = "Density", fill = "Mouse model")
+
 # manhattan plots 
 pManhattan <- list(
   rTg4510Genotype = plot_manhattan_final(sigRes$rTg4510, "Genotype"),

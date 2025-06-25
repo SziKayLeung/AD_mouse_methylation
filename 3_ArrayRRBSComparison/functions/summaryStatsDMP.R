@@ -46,8 +46,7 @@ extract_delta <- function(betaMatrix, sigMatrix = FALSE, phenotypeFile, position
     dat <- dat %>% tibble::rownames_to_column(., var = "position") %>% reshape2::melt(variable.name = "sample",value.name = "methylation", id = "position")
     dat <- dat %>% dplyr::mutate(Genotype = word(as.character(sample), c(2), sep = stringr::fixed("_")))
     dat <- dat %>% group_by(position, Genotype) %>% dplyr::summarise(mean = mean(methylation, na.rm = T), .groups = 'keep') 
-    dat <- tidyr::spread(dat, Genotype, mean) %>% mutate(delta = TG - WT, 
-                                                         directionTG = ifelse(delta < 0, "down", "up"))
+    dat <- tidyr::spread(dat, Genotype, mean) %>% mutate(delta = TG - WT)
     dat <- dat %>% dplyr::rename(meanTG = TG, meanWT = WT)
   }else{
     dat <- data.frame()
@@ -137,6 +136,7 @@ MergeArrayRRBSSigResults <- function(rrbsBeta, arrayBeta, rrbsSigResults, arrayS
 sigArrayResults <- function(arrayBeta, arraySigResults, phenotypeInput){
   cols2Keep <- c("meanWT", "meanTG", "delta", "directionTG", "ChIPseeker_GeneEnsembl","ChIPseeker_GeneSymbol", "ChIPseeker_GeneName","ChIPseeker_Annotation","ChIPseeker_TransEnsembl","distanceToTSS")
   
+  
   delta <- list(
     Genotype = extract_delta(betaMatrix = arrayBeta, sigMatrix = arraySigResults[["Genotype"]], phenotypeFile = phenotypeInput),
     GenotypeAge = extract_delta(betaMatrix = arrayBeta, sigMatrix = arraySigResults[["Interaction"]], phenotypeFile = phenotypeInput),
@@ -144,9 +144,9 @@ sigArrayResults <- function(arrayBeta, arraySigResults, phenotypeInput){
   )
   
   sigRes <- list(
-    Genotype = mergeSigResults("Genotype", arraySigResults[["Genotype"]], "Array", delta$Genotype, "PrZ.GenotypeTG", "FDR_adj_Genotype", cols2Keep),
-    GenotypeAge = mergeSigResults("GenotypeAge", arraySigResults[["Interaction"]], "Array", delta$GenotypeAge, "PrZ.GenotypeTG.Age_months", "FDR_adj_GenotypeAge", cols2Keep),
-    Pathology = mergeSigResults("Pathology", arraySigResults[["Pathology"]], "Array", delta$Pathology, "PrZ.Pathology", "FDR_adj_Pathology", cols2Keep)
+    Genotype = mergeSigResults("Genotype", arraySigResults[["Genotype"]], "Array", delta$Genotype, "PrZ.GenotypeTG", "FDR_adj_Genotype", "Betas.GenotypeTG", cols2Keep),
+    GenotypeAge = mergeSigResults("GenotypeAge", arraySigResults[["Interaction"]], "Array", delta$GenotypeAge, "PrZ.GenotypeTG.Age_months", "Betas.GenotypeTG.Age_months", "FDR_adj_GenotypeAge", cols2Keep),
+    Pathology = mergeSigResults("Pathology", arraySigResults[["Pathology"]], "Array", delta$Pathology, "PrZ.Pathology", "FDR_adj_Pathology", "Betas.Pathology", cols2Keep)
   )
   
   
@@ -265,8 +265,9 @@ mergeSigResults <- function(test, sigResults, platform_name, logFC_data, value_c
     dat <- sigResults %>%
       mutate(position = Position) %>%
       merge(., logFC_data, by = "position", all = TRUE) %>%
+      mutate(directionTG = ifelse(.[[beta_col]] < 0, "down", "up")) %>%
       dplyr::select(platform, position, cpg, !!value_col, !!fdr_col, !!beta_col,  all_of(cols_to_keep)) %>%
-      setNames(c("Platform", "Position", "cpg", paste0("P.value_",test), paste0("FDR_adj_",test), paste0("BetaSize_",test), cols_to_keep))
+      setNames(c("Platform", "Position", "cpg", paste0("P.value_",test), paste0("FDR_adj_",test), paste0("BetaSize_",test), cols_to_keep)) 
   }
   
   
@@ -285,7 +286,7 @@ plot_platform_commonProbes <- function(rrbsBeta, arrayBeta, SigResults, phenotyp
                   phenotypeFile=phenotypeInput,
                   position=intersect(SigResults$Position, commonProbes)) %>% 
       mutate(platform = "Array")
-  ) %>% dplyr::select(-meanTG, -meanWT, -directionTG) %>% tidyr::spread(., platform, delta) %>% 
+  ) %>% dplyr::select(-meanTG, -meanWT) %>% tidyr::spread(., platform, delta) %>% 
     ggplot(., aes(x = Array, y = RRBS)) + geom_point() +
     geom_vline(xintercept = 0) +
     geom_hline(yintercept = 0) +
