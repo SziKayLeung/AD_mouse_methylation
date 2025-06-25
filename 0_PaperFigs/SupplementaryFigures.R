@@ -86,11 +86,13 @@ Ugt2b37 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, p
 Creb3l4 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Creb3l4", "ENSMUST00000029547.9", boxplot = TRUE, colour = "rTg4510")
 As3mt <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "As3mt", "ENSMUST00000003655.8", colour = "rTg4510")
 
+
 # top-ranked DMPs in rTg4510 pathology 
 Insyn2b <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Insyn2b", "ENSMUST00000165963.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
 Zfp423 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Zfp423", "ENSMUST00000109655.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE, position = "chr8:87750175")
 Ankrd52 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Ankrd52", "ENSMUST00000014642.9", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
 Adk <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Adk", "ENSMUST00000045376.10", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
+Cisd3 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Cisd3", "ENSMUST00000107584.7", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
 
 # plot DMP and Track for Prnp
 pPrnPrnPDMP <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, c("Prn","Prnp"), "ENSMUST00000091288.12")
@@ -206,9 +208,11 @@ Ncam2 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pat
 Prmt8 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Prmt8", "ENSMUST00000032500.8", colour = "J20", boxplot = TRUE, pathology = TRUE)
 Zfp518b <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Zfp518b", "ENSMUST00000179555.7", colour = "J20", boxplot = TRUE, pathology = TRUE)
 Zmiz1 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Zmiz1", "ENSMUST00000162645.7", colour = "J20", boxplot = TRUE, pathology = TRUE)
+Grk2 <- plotGeneTrackDMP(sigRes$J20$Pathology, sigBeta$J20$Pathology, phenotype$J20, "Grk2", "ENSMUST00000167511.2", colour = "J20", boxplot = TRUE, pathology = TRUE)
+Fgfr2 <- plotGeneTrackDMP(sigRes$J20$Pathology, sigBeta$J20$Pathology, phenotype$J20, "Fgfr2", "ENSMUST00000117073.1", colour = "J20", boxplot = TRUE, pathology = TRUE)
 
 plot_grid(Nutf2, Tenm2, scale = 0.9, labels = c("i","ii"))
-plot_grid(Ncam2, Zmiz1, Zfp518b, Prmt8, scale = 0.9, labels = c("i","ii","iii","iv"))
+plot_grid(Grk2, Fgfr2, Ncam2, Zmiz1, scale = 0.9, labels = c("i","ii","iii","iv"))
 
 # venn diagram of hippocampus vs entorhinal cortex
 HipECXVennrTg4510 <- plot_grid(venn.diagram(
@@ -361,7 +365,7 @@ Tspan14 <- plotGeneTrackDMP(sigResults=sigRes$J20$Genotype, betaMatrix=sigBeta$J
 plot_grid(pCluster$rTg4510Genotype$gtable, pCluster$rTg4510Pathology$gtable)
 plot_grid(Mapt, Prnp, Ncapg2, Fgf14, labels = c("A","B","C","D"), scale = 0.9)
 plot_grid(Dcaf5, Arsi, Creb3l4, As3mt, labels = c("i","ii","iii","iv"), scale = 0.9)
-plot_grid(Zfp423, Adk, Insyn2b, Ankrd52, labels = c("i","ii","iii","iv"), scale = 0.9)
+plot_grid(Cisd3, Zfp423, Adk, Insyn2b, labels = c("i","ii","iii","iv"), scale = 0.9)
 
 plot_grid(pPrnPrnPDMP,pPrnPrnpPyro, rel_heights = c(0.6,0.4), labels = c("A","B"))
 plot_grid(pAnk1DMP,pAnk1Pyro, rel_heights = c(0.6,0.4), labels = c("A","B"))
