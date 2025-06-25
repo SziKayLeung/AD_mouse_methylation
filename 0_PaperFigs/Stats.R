@@ -39,6 +39,15 @@ t.test(No..raw.reads ~ Genotype, rawRRBSReads$rTg4510)
 cor.test(rTg4510Clocks$ECX$Age_months, rTg4510Clocks$ECX$DNAmAgeClockCortex)
 cor.test(J20Clocks$ECX$Age_months, J20Clocks$ECX$DNAmAgeClockCortex)
 
+sink(file = paste0(output, "/tables/rTg4510_ClockStats.txt"))
+for(age in c(2,4,6,8)){clock_stats(rTg4510Clocks$ECX,age,"rTg4510 ECX")}
+for(age in c(2,4,6,8)){clock_stats(rTg4510Clocks$HIP,age,"rTg4510 HIP")}
+sink(file = NULL)
+sink(file = paste0(output, "/tables/J20_ClockStats.txt"))
+for(age in c(6,8,10,12)){clock_stats(J20Clocks$ECX,age,"J20 ECX")}
+for(age in c(6,8,10,12)){clock_stats(J20Clocks$HIP,age,"J20 HIP")}
+sink(file = NULL)
+
 ## ------ changes in ECX: Genotype + Interaction effect 
 
 message("Number of significant DMPs (FDR < 0.05) genotype: ", nrow(sigRes$rTg4510$Genotype))
@@ -163,6 +172,26 @@ J20_array_results$Pathology[J20_array_results$Pathology$X == "cg22103215",]
 sigResArrayHIP$J20$Pathology[sigResArrayHIP$J20$Pathology$Position == "chr13:81828611",]
 J20_array_results$Pathology[J20_array_results$Pathology$X == "cg22103215",]
 
+## ----- pyrosequencing----
+# Ank1
+#  `Pos1Meth` = "chr8:23023192",
+#  `Pos3Meth` = "chr8:23023240"
+for(pos in c("Pos1Meth", "Pos3Meth")){
+  print(input_pyro$ank1[,c("Group.ID", pos)] %>% reshape2::melt(.) %>% t.test(value ~ Group.ID, data = .))
+}
+
+# Prnp
+#`Pos1Meth` = "chr2:131910162",
+#`Pos2Meth` = "chr2:131910164",
+#`Pos3Meth` = "chr2:131910180",
+#`Pos4Meth` = "chr2:131910201"
+
+for(pos in c("Pos1Meth", "Pos2Meth", "Pos3Meth", "Pos4Meth")){
+  dat = input_pyro$prnp[,c("Group.ID", pos)] %>% reshape2::melt(.) 
+  res = t.test(value ~ Group.ID, data = dat)
+  print(res)
+  print(res$p.value)
+}
 
 ## ----- human ----
 
