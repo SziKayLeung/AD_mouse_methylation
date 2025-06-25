@@ -67,7 +67,7 @@ plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_
 
 
 # combine pathology + genotype
-combine_sig_genotype_pathology <- function(sigGenotype, sigPathology){
+combine_sig_genotype_pathology <- function(sigGenotype, sigPathology, tissue = "ECX"){
   
   commonAnnotationCols <- c("Position","meanWT", "meanTG", "delta", "directionTG", "ChIPseeker_GeneEnsembl", "ChIPseeker_GeneSymbol", "ChIPseeker_GeneName","ChIPseeker_Annotation","ChIPseeker_TransEnsembl","distanceToTSS")
   
@@ -86,16 +86,34 @@ combine_sig_genotype_pathology <- function(sigGenotype, sigPathology){
            ChIPseeker_GeneEnsembl = coalesce(ChIPseeker_GeneEnsembl.x, ChIPseeker_GeneEnsembl.y),
            ChIPseeker_Annotation = coalesce(ChIPseeker_Annotation.x, ChIPseeker_Annotation.y),
            ChIPseeker_TransEnsembl = coalesce(ChIPseeker_TransEnsembl.x, ChIPseeker_TransEnsembl.y),
-           distanceToTSS = coalesce(distanceToTSS.x, distanceToTSS.y)) %>% 
-    dplyr::select(-contains(".x"),-contains(".y")) %>%
-    mutate(across(contains("Effect"), ~ tidyr::replace_na(., FALSE))) %>%
-    dplyr::select(Position, Platform, cpg, "GenotypeEffect","PathologyEffect","InteractionEffect", contains("_Genotype"), contains("_Pathology"), all_of(commonAnnotationCols))
+           distanceToTSS = coalesce(distanceToTSS.x, distanceToTSS.y)) 
   
+  if(tissue == "ECX"){
+    dat <- dat %>%
+      mutate(InteractionEffect = coalesce(InteractionEffect.x, InteractionEffect.y)) %>% 
+      dplyr::select(-contains(".x"),-contains(".y")) %>%
+      mutate(across(contains("Effect"), ~ tidyr::replace_na(., FALSE))) %>%
+      dplyr::select(Position, Platform, cpg, "GenotypeEffect","PathologyEffect","InteractionEffect", contains("_Genotype"), contains("_Pathology"), all_of(commonAnnotationCols))
+    
+    dat <- dat %>% mutate(GenotypeEffect = ifelse(FDR_adj_Genotype < 0.05, TRUE, FALSE))
+    dat[c("GenotypeEffect")][is.na(dat[c("GenotypeEffect")])] <- FALSE
+    
+  }else{
+    dat <- dat %>% 
+      mutate(ECX_Genotype = coalesce(ECX_Genotype.x, ECX_Genotype.y)) %>%
+      mutate(ECX_Pathology = coalesce(ECX_Pathology.x, ECX_Pathology.y)) %>%
+      dplyr::select(-contains(".x"),-contains(".y")) %>%
+      dplyr::select(Position, Platform, cpg, contains("ECX"), contains("_Genotype"), contains("_Pathology"), all_of(commonAnnotationCols))
+  }
+ 
   return(dat)
 }
+
 combinedSigResults <- list(
-  rTg4510 = combine_sig_genotype_pathology(rTg4510_ECX_sigResultsDMPs$Genotype, rTg4510_ECX_sigResultsDMPs$Pathology),
-  J20 = combine_sig_genotype_pathology(J20_ECX_sigResultsDMPs$Genotype, J20_ECX_sigResultsDMPs$Pathology)
+  rTg4510_ECX = combine_sig_genotype_pathology(rTg4510_ECX_sigResultsDMPs$Genotype, rTg4510_ECX_sigResultsDMPs$Pathology),
+  J20_ECX = combine_sig_genotype_pathology(J20_ECX_sigResultsDMPs$Genotype, J20_ECX_sigResultsDMPs$Pathology),
+  rTg4510_HIP = combine_sig_genotype_pathology(sigResArrayHIP$rTg4510$Genotype, sigResArrayHIP$rTg4510$Pathology, tissue = "HIP"),
+  J20_HIP = combine_sig_genotype_pathology(sigResArrayHIP$J20$Genotype, sigResArrayHIP$J20$Pathology, tissue = "HIP")
 )
 
 ## ------------------- table output ------------------
@@ -106,7 +124,8 @@ write.csv(rTg4510_ECX_sigResultsDMPs$Pathology, paste0(dirnames$paper,"/tables/r
 write.csv(rTg4510_tissueArray_sigResultsDMPs, paste0(dirnames$paper,"/tables/rTg4510_tissueArray_sigResultsDMPs_Genotype.csv"), quote = T)
 write.csv(sigResArrayHIP$rTg4510$Genotype, paste0(dirnames$paper,"/tables/rTg4510_HIP_sigResultsDMPs_Genotype.csv"), quote = T)
 write.csv(sigResArrayHIP$rTg4510$Pathology, paste0(dirnames$paper,"/tables/rTg4510_HIP_sigResultsDMPs_Pathology.csv"), quote = T)
-write.csv(combinedSigResults$rTg4510, paste0(dirnames$paper,"/tables/rTg4510_ECX_sigResultsDMPs_Combined.csv"), quote = T)
+write.csv(combinedSigResults$rTg4510_ECX, paste0(dirnames$paper,"/tables/rTg4510_ECX_sigResultsDMPs_Combined.csv"), quote = T, row.names = F)
+write.csv(combinedSigResults$rTg4510_HIP, paste0(dirnames$paper,"/tables/rTg4510_HIP_sigResultsDMPs_Combined.csv"), quote = T, row.names = F)
 
 # J20
 write.csv(J20_ECX_sigResultsDMPs$Genotype, paste0(dirnames$paper,"/tables/J20_ECX_sigResultsDMPs_Genotype.csv"), quote = T)
@@ -115,7 +134,8 @@ write.csv(J20_ECX_sigResultsDMPs$Pathology, paste0(dirnames$paper,"/tables/J20_E
 write.csv(J20_tissueArray_sigResultsDMPs, paste0(dirnames$paper,"/tables/J20_tissueArray_sigResultsDMPs_Genotype.csv"), quote = T)
 write.csv(sigResArrayHIP$J20$Genotype, paste0(dirnames$paper,"/tables/J20_HIP_sigResultsDMPs_Genotype.csv"), quote = T)
 write.csv(sigResArrayHIP$J20$Pathology, paste0(dirnames$paper,"/tables/J20_HIP_sigResultsDMPs_Pathology.csv"), quote = T)
-write.csv(combinedSigResults$J20, paste0(dirnames$paper,"/tables/J20_ECX_sigResultsDMPs_Combined.csv"), quote = T)
+write.csv(combinedSigResults$J20_ECX, paste0(dirnames$paper,"/tables/J20_ECX_sigResultsDMPs_Combined.csv"), quote = T, row.names = F)
+write.csv(combinedSigResults$J20_HIP, paste0(dirnames$paper,"/tables/J20_HIP_sigResultsDMPs_Combined.csv"), quote = T, row.names = F)
 
 # GO analysis
 extract_postions_as_bed(sigRes$rTg4510$Genotype$Position, paste0(dirnames$GO,"rTg4510_sig_ECX_Genotype_coordinates.bed"))

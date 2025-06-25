@@ -45,8 +45,9 @@ message("Number of significant DMPs (FDR < 0.05) genotype: ", nrow(sigRes$rTg451
 message("Number of genes associated with significant DMPs genotype: ", length(unique(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol)))
 message("Number of significant DMPs (FDR < 0.05) genotype, hypomethylated: ", nrow(sigRes$rTg4510$Genotype %>% filter(directionTG == "down")))
 message("Number of significant DMPs (FDR < 0.05) genotype, hypermethylated: ", nrow(sigRes$rTg4510$Genotype %>% filter(directionTG == "up")))
-binom.test(686, 1143, p = 0.5, alternative = "two.sided")
+binom.test(505, 1143, p = 0.5, alternative = "two.sided")
 message("Number of significant DMPs (FDR < 0.05) pathology: ", nrow(sigRes$rTg4510$Pathology))
+message("Number of genes associated with significant DMPs pathology: ", length(unique(sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol)))
 message("Number of significant DMPs (FDR < 0.05) unique to pathology: ", length(setdiff(sigRes$rTg4510$Pathology$Position, sigRes$rTg4510$Genotype$Position)))
 message("Number of common significant DMPs pathology and interaction: ", length(progressiveSites$rTg4510))
 message("Number of additional sites in DMPs pathology and interactions vs genotype: ", length(intersect(sigRes$rTg4510$Genotype$Position, progressiveSites$rTg4510)))
@@ -56,10 +57,11 @@ message("Number of genes associated with significant DMPs interaction and pathol
 message("Number of significant DMPs (FDR < 0.05) genotype: ", nrow(sigRes$J20$Genotype))
 message("Number of significant DMPs (FDR < 0.05) genotype, hypomethylated: ", nrow(sigRes$J20$Genotype %>% filter(directionTG == "down")))
 message("Number of significant DMPs (FDR < 0.05) genotype, hypermethylated: ", nrow(sigRes$J20$Genotype %>% filter(directionTG == "up")))
-res <- binom.test(1673, 2521, p = 0.5, alternative = "two.sided")
+res <- binom.test(736, 2521, p = 0.5, alternative = "two.sided")
 res$p.value
 
 message("Number of significant DMPs (FDR < 0.05) pathology: ", nrow(sigRes$J20$Pathology))
+message("Number of genes associated with significant DMPs pathology: ", length(unique(sigRes$J20$Pathology$ChIPseeker_GeneSymbol)))
 message("Number of significant DMPs (FDR < 0.05) unique to pathology: ", length(setdiff(sigRes$J20$Pathology$Position, sigRes$J20$Genotype$Position)))
 message("Number of significant DMPs (FDR < 0.05) common to interaction and pathology: ", length(progressiveSites$J20))
 message("Number of significant DMPs (FDR < 0.05) common to interaction and pathology but not genotype: ", length(setdiff(progressiveSites$J20, sigRes$J20$Genotype$Position)))
