@@ -320,7 +320,7 @@ plotGeneTrackDMP <- function(sigResults, betaMatrix, phenotypeFile, gene, transc
       geom_point() +
       scale_color_manual(values=c("black", colourbox)) +
       theme_classic() +
-      stat_summary(aes(col = Genotype, group = Genotype), fun.y = mean, geom = "smooth", linetype = "dotted", colour = colourbox) +
+      stat_summary(aes(colour = Genotype, group = Genotype), fun.y = mean, geom = "smooth", linetype = "dotted") +
       theme_classic() + 
       theme(panel.border = element_rect(fill = NA, color = "white", linetype = "dotted"),
             panel.grid.major = element_blank(),
