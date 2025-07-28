@@ -1,8 +1,19 @@
-# directory input
-rootDir = "/lustre/projects/Research_Project-191406"
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
-source(paste0(scriptDir, "import.config"))
+#!/usr/bin/env Rscript
+## ----------Script-----------------  
+##
+## Purpose: Generate supplementary tables for manauscript
+##         
+##
+## Author: Szi Kay Leung (S.K.Leung@exeter.ac.uk)
+##
+## ---------- Notes -----------------
+
+
+#-------------- Input -------------
+
+scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
 source(paste0(scriptDir, "0_PaperFigs/paper_import.config.R"))
+
 
 ## ------------------- load ------------------
 

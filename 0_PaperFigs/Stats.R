@@ -1,9 +1,21 @@
+#!/usr/bin/env Rscript
+## ----------Script-----------------  
+##
+## Purpose: Stats for manauscript
+##         
+##
+## Author: Szi Kay Leung (S.K.Leung@exeter.ac.uk)
+##
+## ---------- Notes -----------------
 
-scriptDir = "/lustre/projects/Research_Project-MRC148213/lsl693/scripts/AD_mouse_methylation/"
-source(paste0(scriptDir, "import.config.R"))
-source(paste0(scriptDir, "0_PaperFigs/Functions.R"))
+
+#-------------- Input -------------
+
+scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
 source(paste0(scriptDir, "0_PaperFigs/paper_import.config.R"))
 
+
+#-------------- General -------------
 
 message("Number of sites in RRBS in rTg4510: ", nrow(rTg4510_rrbs_beta))
 message("Number of sites in RRBS in J20: ", nrow(J20_rrbs_beta))
@@ -38,6 +50,8 @@ t.test(No..raw.reads ~ Genotype, rawRRBSReads$rTg4510)
 # correlation in rTg4510
 cor.test(rTg4510Clocks$ECX$Age_months, rTg4510Clocks$ECX$DNAmAgeClockCortex)
 cor.test(J20Clocks$ECX$Age_months, J20Clocks$ECX$DNAmAgeClockCortex)
+cor.test(rTg4510Clocks$HIP$Age_months, rTg4510Clocks$HIP$DNAmAgeClockCortex)
+cor.test(J20Clocks$HIP$Age_months, J20Clocks$HIP$DNAmAgeClockCortex)
 
 sink(file = paste0(output, "/tables/rTg4510_ClockStats.txt"))
 for(age in c(2,4,6,8)){clock_stats(rTg4510Clocks$ECX,age,"rTg4510 ECX")}
@@ -64,6 +78,7 @@ message("Number of genes associated with significant DMPs interaction and pathol
 
 
 message("Number of significant DMPs (FDR < 0.05) genotype: ", nrow(sigRes$J20$Genotype))
+message("Number of genes associated with significant DMPs genotype: ", length(unique(sigRes$J20$Genotype$ChIPseeker_GeneSymbol)))
 message("Number of significant DMPs (FDR < 0.05) genotype, hypomethylated: ", nrow(sigRes$J20$Genotype %>% filter(directionTG == "down")))
 message("Number of significant DMPs (FDR < 0.05) genotype, hypermethylated: ", nrow(sigRes$J20$Genotype %>% filter(directionTG == "up")))
 res <- binom.test(736, 2521, p = 0.5, alternative = "two.sided")
@@ -135,7 +150,7 @@ length(intersect(sigResArrayHIP$rTg4510$PathologyCommonInteraction$Position,
                    intersect(sigResArrayECX$rTg4510$GenotypeAge$Position, sigResArrayECX$rTg4510$Pathology$Position)))))
 
 message("Total number of signficant DMPs associated with amyloid in J20 TG vs WT mice (genotype) in hippocampus: ", length(J20_array_sig$HIP$Genotype$position))
-message("Total number of signficant DMPs associated with amyloid in J20 TG vs WT mice (pathology) in hippocampus: ", length(sigResArrayHIP$J20$PathologyCommonInteraction$Position))
+message("Total number of signficant DMPs associated with amyloid in J20 TG vs WT mice (pathology) in hippocampus: ", length(sigResArrayHIP$J20$Pathology$Position))
 
 message("Total number of DMPs from array in rTg4510, ECX & HIP: ", length(unique(c(sigResArrayECX$rTg4510$Genotype$Position,commonECXHIPSites$rTg4510_interaction_pathology_ECX,  
   sigResArrayHIP$rTg4510$Genotype$Position, commonECXHIPSites$rTg4510_interaction_pathology_HIP))))

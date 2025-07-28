@@ -1,8 +1,11 @@
 rootDir = "/lustre/projects/Research_Project-191406"
 scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
 output = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/1_Projects/AD_Mouse_Model/rTg4510_mice_methylation_paper/0_ZenOutput/PaperOutput/"
+LOGEN_ROOT = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/LOGen/" 
 source(paste0(scriptDir, "import.config.R"))
 source(paste0(scriptDir, "0_PaperFigs/Functions.R"))
+source(paste0(scriptDir, "3_ArrayRRBSComparison/functions/summaryStatsDMP.R"))
+source(paste0(LOGEN_ROOT, "/aesthetics_basics_plots/draw_venn.R"))
 
 sigBeta <- list(
   rTg4510 = get(load(paste0(dirnames$annotated,"/final/rTg4510_ECX_sigBeta.RData"))),
