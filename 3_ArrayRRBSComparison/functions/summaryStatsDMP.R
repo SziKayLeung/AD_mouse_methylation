@@ -4,6 +4,23 @@ source(paste0(LOGEN_ROOT, "/aesthetics_basics_plots/pthemes.R"))
 suppressMessages(library("stringr"))
 suppressMessages(library("dplyr"))
 
+mytheme <- theme(axis.line = element_line(colour = "black"),
+                 panel.grid.major = element_blank(),
+                 panel.grid.minor = element_blank(),
+                 panel.border = element_blank(),
+                 panel.background = element_blank(),
+                 text=element_text(size=16),
+                 axis.title.x = element_text(vjust=-0.5, colour = "black"),
+                 axis.title.y = element_text(vjust=0.5, margin = margin(t = 0, r = 10, b = 0, l = 0)),
+                 legend.position = c(.90, 0.95),
+                 legend.box.just = "right",
+                 legend.margin = margin(6, 6, 6, 6),
+                 legend.text = element_text(size = 12),
+                 axis.text.x= element_text(size=16),
+                 axis.text.y= element_text(size=16),
+                 plot.title = element_text(size=16),
+                 plot.subtitle = element_text(size=16))
+
 # common probes between beta dataset and number of probes from array
 commonStatsDescription <- function(rrbsBeta, arrayBeta){
   message("Number of probes in RRBS after smoothing: ", length(row.names(rrbsBeta)))
@@ -218,6 +235,7 @@ plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, p
     }
     
     p <- p +
+      mytheme + 
       theme_classic() + 
       theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
             panel.grid.major = element_blank(),
@@ -231,22 +249,77 @@ plot_DMP <- function(betaMatrix, phenotypeFile, position, interaction = FALSE, p
   return(p)
 }
 
+plot_gene_track <- function(betaMatrix, phenotypeFile, position, colour, gene, transcript){
+  
+  if(isFALSE(colour)){
+    colourbox = "yellow"
+  }else{
+    colourbox <- label_colour(colour)
+  }
+  
+  # extract positions from beta matrix
+  if(is.null(position)){
+    dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% sigResults[sigResults$ChIPseeker_GeneSymbol %in% gene,"Position"])
+  }else{
+    dat <- betaMatrix %>% filter(row.names(betaMatrix) %in% position)
+  }
+  
+  # split to get the coordinates from the position <chrX:YY>
+  dat <- dat %>% tibble::rownames_to_column(., var = "position") %>% reshape2::melt(variable.name = "sample",value.name = "methylation", id = "position")
+  dat <- merge(dat, phenotypeFile, by.y = 0, by.x = "sample")
+  dat$coordinate <- stringr::str_split_i(dat$position,":",2)
+  dat$chr <- stringr::str_split_i(dat$position,":",1)
+  
+  
+  # extract the transcript of interest from txdb
+  gr <- subset(transcripts(txdb), tx_name == transcript)
+  grdf <- as.data.frame(gr)
+  
+  
+  # gene track (note reduce: collapsed all the exons within that vicinity from transcript)
+  # stat = "reduce"
+  gene_track <- ggplot() + 
+    geom_alignment(TxDb.Mmusculus.UCSC.mm10.knownGene, which = gr, label = FALSE) + 
+    theme_bw() + 
+    labs(subtitle = gene) +
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          text = element_text(size = 16),
+          panel.border = element_blank(),
+          plot.subtitle = element_text(face = "italic")) 
+  
+  
+  # min-value and max-value from the DMP range
+  minvalue = min(dat$coordinate)
+  maxvalue = max(dat$coordinate)
+  
+  # box the DMP region
+  gene_track <- gene_track +
+    geom_rect(data = as.data.frame(grdf), aes(xmin = as.numeric(minvalue) , xmax = as.numeric(maxvalue), ymin = -Inf, ymax = Inf), 
+              fill = colourbox, alpha = 0.3, 
+              colour = colourbox)
+  
+  return(gene_track)
+}
+
 plot_DMP_byTissue <- function(ECXbetaMatrix, HIPbetaMatrix, ECXphenotypeFile, HIPphenotypeFile, position, 
-                              interaction = FALSE, pathology = FALSE, model = "rTg4510", gene = NULL){
+                              interaction = FALSE, pathology = FALSE, model = "rTg4510", gene = NULL, transcript = NULL){
   
   ECX_dat <- merge_beta_phenotype(ECXbetaMatrix, ECXphenotypeFile, position) %>% mutate(tissue = "ECX")
   HIP_dat <- merge_beta_phenotype(HIPbetaMatrix, HIPphenotypeFile, position)%>% mutate(tissue = "HIP")
   dat <- rbind(ECX_dat, HIP_dat)
 
-  p <- plot_DMP(betaMatrix=NULL,phenotypeFile=NULL,position=NULL, interaction=interaction,pathology=pathology,model=model,dat=dat) + facet_grid(~ tissue) 
+  p <- plot_DMP(betaMatrix=NULL,phenotypeFile=NULL,position=NULL, interaction=interaction,pathology=pathology,model=model,dat=dat) + facet_grid(~ tissue)
   
-  if(is.null(gene)){
-    p <- p + labs(subtitle = position)
+  if(!is.null(transcript)){
+    p <- p + labs(subtitle = position) + mytheme
+    gene_track <- plot_gene_track(ECXbetaMatrix, ECXphenotypeFile, position, model, gene, transcript)
+    output <- plot_grid(gene_track,p,nrow=2, rel_heights = c(0.3,0.7))
   }else{
-    p <- p + labs(subtitle = paste0(gene, " (", position, ")"))
+    output <-  p + labs(subtitle = bquote(italic(.(gene)) ~ "(" * .(position) * ")")) + mytheme
   }
-  
-  return(p)
+
+  return(output)
 }
 
 
