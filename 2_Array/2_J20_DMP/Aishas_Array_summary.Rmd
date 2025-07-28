@@ -1,0 +1,428 @@
+---
+title: "Vertebrate Array Summary"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load data, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+library(minfi)
+
+```
+
+# Mappability of array
+
+There are two files provided by Horvath to select probes that are mappable to the mouse genome. The unique mappability file contains probes that are unqiue matches to the mouse genome. The ambiguous files are not exact matches and the probe sequences can bind to more than one site on the mouse genome. Below the plot shows the density distribtuiion of all the probes on the array, the ambiguous probes and the uniqye probes. It is clear that the unique probes are clear consistent across all samples. 
+
+```{r, warning=F,message=F}
+load("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/AllProbesRaw_QCd.rdat")
+amb_probe_map <- read_csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/mappabilityData/HorvathMammalChip_SpeciesGenomeCoordsAmbiguous_v1.1.csv", col_types = cols(.default = "c"))
+amb_probe_map <- amb_probe_map[, c('probeID','MusMusculus')]
+amb_probe_map <- as.data.frame(amb_probe_map[!is.na(amb_probe_map$MusMusculus),]) #24,048
+
+uniq_probe_map <- read_csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/mappabilityData/HorvathMammalChip_SpeciesGenomeCoordsUnique_v1.1.csv", col_types = cols(.default = "c"))
+uniq_probe_map  <- uniq_probe_map [, c('probeID','MusMusculus')]
+uniq_probe_map <- as.data.frame(uniq_probe_map[!is.na(uniq_probe_map$MusMusculus),]) #23,633
+
+amb_betas <- subsetByLoci(RGset_all, include=amb_probe_map$probeID)
+uniq_betas <- subsetByLoci(RGset_all, include=uniq_probe_map$probeID)
+
+densityPlot(RGset_all, main = "All probes")
+densityPlot(amb_betas,main = "Ambiguous probes")
+densityPlot(uniq_betas,main = "Unique probes")
+```
+
+
+```{r, message= FALSE, warning = FALSE}
+rm(list=ls())
+load("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/Normalised_Data_Sesame.rdat")
+probe_mapping_file <- read_csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/mappabilityData/HorvathMammalChip_SpeciesGenomeCoordsUnique_v1.1.csv", col_types = cols(.default = "c"))
+
+#filter for mouse samples
+species_mappability_name = "MusMusculus"
+species_probes <- probe_mapping_file[, c('probeID','MusMusculus')]
+species_probes <- as.data.frame(species_probes[!is.na(species_probes$MusMusculus),]) #23633
+species_probes$Chr <- gsub(":.*","",species_probes$MusMusculus)
+```
+
+# CpG Islands
+
+
+
+This report is a summary for the vertebrate array created by Hovarth's group. There are `r nrow(species_probes)` probes that map onto mouse genome.
+There is a file that summarises which genome version was used for each specieles (MammalianArrayNormalizationTools/mappabilityData/HorvathMammalChip_SpeciesSourcesTaxonomyAndKeys_v1.0.csv). The mouse genome used is genome version 38, Ensembl Release95 (Downloaded 21.9.19). The NCBI Taxid is 10090.
+Figure below summarises the distribution of cpgs across the mouse genome. 
+
+```{r cpgs, message= FALSE, warning = FALSE}
+MouseChr <- as.data.frame(table(species_probes$Chr))
+MouseChr2 <- MouseChr[c(1:19, 23:24),]
+MouseChr2$Var1 <- as.character(MouseChr2$Var1)
+
+chroder <- c("1", '2',  '3',  '4',  '5',  '6',  '7',  '8',  '9', 
+             '10', '11','12', '13', '14', '15', '16', '17', '18', '19', "X", "Y")
+
+MouseChr2$Var1 <- factor(MouseChr2$Var1, levels = chroder)
+
+ggplot(MouseChr2, aes(MouseChr2$Var1, MouseChr2$Freq))+
+  geom_bar(stat = "identity") +
+  labs(x = "Chromosome", y = "Number of cpgs") +
+  theme_classic()
+
+```
+
+
+```{r cpg islands,  warning= FALSE, message = FALSE}
+
+#Plot the proportion of locations of the cpgs across the genome
+cpg_loc <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/CpGIslandsAnnotation/probes_CGislands.csv", stringsAsFactors = F, header = T) #38398 rows
+cpg_loc <- cpg_loc[,c("probeID","MusMusculus_mm10_chr_island", "MusMusculus_mm10_island_start",
+                      "MusMusculus_mm10_island_end")] #filter for mouse data
+
+mouse_cpg <- left_join(species_probes, cpg_loc, by = "probeID")
+
+mouse_cpg$island <- mouse_cpg$MusMusculus_mm10_island_start
+
+mouse_cpg$island[!is.na(mouse_cpg$island)] <- "Yes"
+mouse_cpg$island[is.na(mouse_cpg$island)] <- "No" 
+
+MouseCpg <- as.data.frame(table(mouse_cpg$island))
+
+## Which chromosomes have cpgs islands
+tblmousecpg <- as.data.frame(table(mouse_cpg$Chr, mouse_cpg$island))
+tblmousecpg$Var1  <- as.character(tblmousecpg$Var1 )
+tblmousecpg <- tblmousecpg[-which(tblmousecpg$Var1 %in% c("CHR_MG4200_PATCH", "CHR_MG51_PATCH", "CHR_MG3699_PATCH")),]
+```
+
+
+A spreadsheet indicating which cpg's are within cpg islands is provided. A summary of the cpg islands and their disribtion is presented below for the mouse species. There are `r nrow(mouse_cpg[which(mouse_cpg$island == "Yes"),])` cpgs in cpg islands out of `r nrow(mouse_cpg)` cpgs.
+
+```{r plots,  message = FALSE, warning = FALSE}
+par(mfrow = c(2,1))
+ggplot(MouseCpg, aes(MouseCpg$Var1, MouseCpg$Freq))+
+  geom_bar(stat = "identity") +
+  labs(x = "Cpg in Cpg island", y = "Number of cpgs") +
+  geom_text(aes(label=MouseCpg$Freq), position=position_dodge(width=0.9), vjust=-0.25) +
+  theme_classic()
+
+tblmousecpg$Var1 <- factor(tblmousecpg$Var1, levels = chroder)
+ggplot(tblmousecpg, aes(fill = tblmousecpg$Var2, x = tblmousecpg$Var1, 
+                        y =tblmousecpg$Freq)) +
+  geom_bar(position="stack", stat="identity") +
+  guides(fill=guide_legend(title="Cpg in Cpg island")) +
+  labs(x = "Chromosome", y = "Number of cpgs") +
+  theme_classic()
+```
+
+# Comparison to 450K & EPIC array
+
+The vertebrate array shares some probes on the 450k and EPIC array. This table summaries the cpgs that are shared between the arrays.
+
+```{r human array, message= FALSE, warning= FALSE}
+
+load("/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/AllProbeIlluminaAnno.Rdata")
+EpicAnnot <- read.csv( "/gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/epicManifest_hg38.csv" ,stringsAsFactors = F, header = T)
+
+#Make table with summary
+overlapdf <- matrix(data = NA, nrow = 2, ncol = 2)
+rownames(overlapdf) <- c("All vertebrate cpgs",
+                         "Mouse cpgs")
+colnames(overlapdf) <- c("450k", "EPIC")
+
+#Overlap with vertebrate array
+overlapdf[1,1] <- length(intersect(probe_mapping_file$probeID, probeAnnot$TargetID)) #5498 w/ 450k
+overlapdf[1,2] <- length(intersect(probe_mapping_file$probeID, EpicAnnot$Name)) #7453 w/ EPIC
+
+#Overlap with mouse cpgs
+overlapdf[2,1] <- length(intersect(species_probes$probeID, probeAnnot$TargetID)) #2154 w/ 450k
+overlapdf[2,2] <- length(intersect(species_probes$probeID, EpicAnnot$Name)) #3139 w/ EPIC
+
+
+
+Total <- c(nrow(probeAnnot), nrow(EpicAnnot), NA)
+Vertbrate    <- c(nrow(probe_mapping_file), nrow(species_probes))
+
+overlapdf2 <- cbind(overlapdf, Vertbrate)
+overlapdf2 <- rbind(overlapdf2, Total)
+
+grid.table(overlapdf2)
+
+```
+
+# Species coverage 
+
+There are 192 species and each species has different number of probes on the array. This table and barplot summarises the numbers of probes shared on the array. There is also ~2,000 probes for the epigenetic clock calculations. 
+
+
+```{r table, warning= FALSE, message = FALSE, fig.align = "center", fig.height=20}
+library(kableExtra)
+library(ggplot2)
+#library(bsselectR)
+library(gridExtra)
+
+#make a table of number of probes per species
+probe_mapping_file2 <-   probe_mapping_file[,2:193]
+rownames(probe_mapping_file2) <- probe_mapping_file$probeID
+speciessummary <- matrix(NA, nrow = ncol(probe_mapping_file2), ncol = 1)
+rownames(speciessummary) <- colnames(probe_mapping_file2)
+colnames(speciessummary) <- "Number of probes"
+for(i in 1:ncol(probe_mapping_file2)) {
+  species <- as.matrix(probe_mapping_file2[,i])
+  species[,1] <- as.character(species[,1])
+  colnames(species) <- colnames(probe_mapping_file2)[i]
+  species <- species[!is.na(species),]
+  speciessummary[i,1] <- length(species)
+}
+
+
+kable(speciessummary) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "500px")
+
+# Make vertical barchart for species
+speciessummary2 <- as.data.frame(speciessummary)
+speciessummary2$species <- rownames(speciessummary2)
+colnames(speciessummary2) <- c("Number_of_probes", "Species")
+speciesorder <- sort(speciessummary2$Species, decreasing = T)
+speciessummary2$Species <- factor(speciessummary2$Species, 
+                                    levels = speciesorder)
+
+ggplot(speciessummary2, aes(x = speciessummary2$Species, 
+                           y = speciessummary2$Number_of_probes)) +
+  geom_bar(stat = "identity") +
+  labs(x = "", y = "") +
+  coord_flip() +
+  theme_classic()
+```
+
+# Distance between CpGs
+
+There are a number of cpgs on the genome, and the distance varies for adjacent cpgs differs from region to region. Here, we calculate the distance (bps) between two adjacent cpgs for each chromosome. A histogram is plotted to visualise the distribution of these distances on each chromosome. The median for each chromosome is calculated and plotted to check that each chromosome is distributed similarly. 
+
+
+```{r distance,  warning=F,message=F, fig.width = 5, fig.height = 5, fig.show = "hold", out.width = "50%"}
+#"MusMusculus"
+library(dplyr)
+require(scales)
+mouse <- as.data.frame(probe_mapping_file[, "MusMusculus"])
+rownames(mouse) <- probe_mapping_file$probeID
+colnames(mouse) <- "location"
+mouse$location <- as.character(mouse$location)
+mouse$Chr <- gsub(":.*", "", mouse$location)
+mouse$Bp <- gsub(".*:", "", mouse$location)
+mouse2 <- mouse[-which(mouse$Chr %in% c("CHR_MG51_PATCH" ,
+                                     "CHR_MG4200_PATCH", "CHR_MG3699_PATCH")),]
+chrs <- c(1:19, "X")
+median_distance <- c()
+for(i in chrs) {
+  mouse2chr1 <- mouse[which(mouse$Chr == i),]
+  mouse2chr1$Bp <- as.numeric(as.character(mouse2chr1$Bp))
+  mouse2chr1 <- mouse2chr1[order(mouse2chr1$Bp), ]
+  mouse2chr1 <- mouse2chr1 %>%
+    mutate(Diff = Bp - lag(Bp)) #this works out the difference of cpgs on each chrs
+  median_distance <- c(median_distance, median(mouse2chr1$Diff[2:nrow(mouse2chr1)]))
+  
+p = ggplot(mouse2chr1, aes(mouse2chr1$Diff)) +
+    geom_histogram() +
+    scale_x_continuous(labels = comma, trans='log') +
+    scale_y_continuous(labels = comma) +
+    theme_classic() +
+    labs(x = "difference between adjacent cpgs (log scale)", 
+         title = paste("Chr",i, sep = "")) +
+    theme(plot.title = element_text(hjust = 0.5))
+
+print(p)
+}
+
+```
+
+
+```{r summary distance, warning = F, message=F, fig.show='hold',out.weight="50%"}
+median_distancedf <- data.frame(chrs, median_distance)
+median_distancedf$chrs  <- as.character(median_distancedf$chrs)
+ggplot(median_distancedf, aes(x = factor(median_distancedf$chrs, levels = chrs), y = median_distancedf$median_distance)) +
+  geom_point() +
+  labs(x = "Chromosomes", y = "Median distances across cpgs") +
+  theme_classic()
+ggplot(median_distancedf, aes(x = factor(median_distancedf$chrs, levels = chrs), y = median_distancedf$median_distance)) +
+  geom_point() +
+  labs(x = "Chromosomes", y = "Median distances across cpgs (log scale)") +
+  theme_classic()+
+  scale_y_continuous(trans='log')
+```
+
+# Gene Annotation
+
+We can check the genes these cpgs lie on by using the Rpackage TxDb.Mmusculus.UCSC.mm10.knownGene. The Ensembl ID will be used to annotate the cpg which lie in trancripts and genes. This table summarises all the information about the mouse array.  
+
+```{r genes, warning=F, message=F}
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(clusterProfiler)
+library(tidyverse)
+
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+# peak can be granges object..
+manifest <- species_probes
+manifest$Chr <- gsub(":.*", "", manifest$MusMusculus)
+manifest$Bp <- gsub(".*:", "", manifest$MusMusculus)
+manifest <- manifest[-which(manifest$Chr %in% c("CHR_MG51_PATCH" ,
+                                                "CHR_MG4200_PATCH", "CHR_MG3699_PATCH")),]
+manifest$start <- manifest$Bp
+manifest$end <- manifest$Bp
+manifest$Chr <- paste("chr", manifest$Chr, sep = "")
+rownames(manifest) <- manifest$probeID
+manifest <- manifest[,-c(1:2)]
+mm10_granges <- makeGRangesFromDataFrame(manifest,
+                                         keep.extra.columns=T,
+                                         ignore.strand=FALSE,
+                                         seqinfo=NULL,
+                                         seqnames.field=c("seqnames","seqname",
+                                                          "chromosome", "chrom",
+                                                          "chr", "chromosome_name"),
+                                         start.field="start",
+                                         end.field="end") #make this object to carry the liftover
+peakAnno <- annotatePeak(mm10_granges,
+                         TxDb=txdb, annoDb="TxDb.Mmusculus.UCSC.mm10.knownGene")
+
+plotAnnoPie(peakAnno)
+plotAnnoBar(peakAnno)
+
+# Pull out the annotation 
+peakAnno_df <- as.data.frame(peakAnno@anno)
+
+# Convert the ensemble id startto ensemble name
+EnsembleID <- peakAnno_df$transcriptId
+
+library('biomaRt')
+mart <- useDataset("mmusculus_gene_ensembl", useMart("ensembl"))
+G_list <- getBM(attributes = c('ensembl_transcript_id_version',
+                               'ensembl_gene_id',
+                               'external_transcript_name',
+                               'external_gene_name'),
+                filters = 'ensembl_transcript_id_version',
+                values = EnsembleID,
+                mart = mart)
+
+write.csv(G_list, "Peak_transcript_Gene.csv")
+
+peakAnno_df$Gene_Symbol <- rep(NA, nrow(peakAnno_df))
+
+peakAnno_df$Gene_Symbol <- G_list$external_gene_name[match(peakAnno_df$transcriptId, G_list$ensembl_transcript_id_version)]
+
+
+peakAnno_df$cpg <- rownames(peakAnno_df)
+peakAnno_df <- peakAnno_df[,c(17,1:16)]
+
+write.csv(peakAnno_df, "mm10_Manifest.csv")
+
+```
+
+Now that we have the gene annotation for the mouse, we can compare this to what these sites would map onto the human genome. We will first see how many genes name to sites they share than whether these sites map onto the same region of the gene. We can see that almost half of the sites on the array map onto the same genes.
+
+```{r human gene annotation, warning=F,message=F}
+library(stringr)
+library(ggplot2)
+library(reshape2)
+library(tidyr)
+
+ManifestHorvath <- read.csv("/gpfs/ts0/projects/Research_Project-191406/Horvath/MammalianArrayNormalizationTools/manifests/HorvathMammal40.Manifest.May2020.manifest.csv", stringsAsFactors = F, header = T)
+Manifest <- read.csv("//gpfs/ts0/projects/Research_Project-191406/Aisha/data/Array/mm10_Manifest.csv", stringsAsFactors = F,header = T, row.names = 1)
+
+#identical(ManifestHorvath$IlmnID, Manifest$cpg)
+
+# Filter for the same probes
+ManifestHorvath <- ManifestHorvath[which(ManifestHorvath$IlmnID %in% Manifest$cpg),]
+#identical(ManifestHorvath$IlmnID, Manifest$cpg)
+
+
+# Make different dataframe with probe and gene names
+hg38 <- ManifestHorvath[,c("IlmnID", "HG38.SYMBOL")]
+mm10 <- Manifest[,c("cpg", "Gene_Symbol")]
+#identical(hg38$IlmnID, mm10$cpg) #same order -yes
+
+
+############### First level - are the cpg annotated to the same gene
+#remove caps
+mm10$Gene_Symbol <- str_to_lower(mm10$Gene_Symbol, locale = "en")
+hg38$HG38.SYMBOL <- str_to_lower(hg38$HG38.SYMBOL, locale = "en")
+
+samegene <- matrix(NA, nrow = nrow(mm10),ncol = 4)
+for(i in 1:nrow(samegene)){
+  samegene[i,1] <- mm10[i,1] #cpg name
+  samegene[i,2] <- grepl(hg38[i,2], mm10[i,2]) #TRUE/FALSE if both exists
+  samegene[i,3] <- identical(hg38[i,2],mm10[i,2]) #Checks that its one to one gene labelling, false if mm10 has mulitple gene labelling
+  samegene[i,4] <- pmatch(mm10[i,2] , hg38[i,2]) #partial match e.g abd-1 and abd is seen the same
+  
+}
+samegene <- as.data.frame(samegene) #convert the vector to df
+colnames(samegene) <- c("cpg", "Both_Genomes", "Identical", "Partial_Match")
+#length(which(samegene$Both_Genomes == TRUE)) #14,744
+#length(which(samegene$Both_Genomes == FALSE)) #8,884
+#length(which(samegene$Partial_Match == 1)) 
+
+gene_summary <- cbind(sum(!is.na(mm10$Gene_Symbol)), 
+                      sum(!is.na(hg38$HG38.SYMBOL)),
+                      length(which(samegene$Both_Genomes == TRUE)),#How many sites had exact same genes to a site
+                      length(which(samegene$Identical == TRUE))) #How many sites are identical 1:1
+gene_summary <- as.data.frame(gene_summary)
+colnames(gene_summary) <- c("mm10", "hg38", "Gene in both builds", "Same gene")
+
+gene_summary <- gene_summary[,c(2,1,3,4)] #reorder here since df will be melted
+
+mdf <- melt(gene_summary[,c(1,2,4)])
+ggplot(mdf, aes(x = variable, y = value, label = value)) +
+  geom_bar(stat = "identity", fill = "lightgrey", colour = "lightgrey") +
+  labs(x = "Genome Build", y = "Number of genes") +
+  theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  geom_text(position = position_dodge(width=0.9),
+            size=3)
+
+############### Second level- are cpg annotated to the same feature of the same gene
+
+## Find out what the annotation names are:
+# Take the first word - make sure its 3'UTR not just 3
+mm10$Annot <- Manifest$annotation
+mm10$Annot2 <- gsub("([A-Za-z]+).*", "\\1", mm10$Annot)
+mm10$Annot2 <- factor(mm10$Annot2, levels = c("3' UTR", "5' UTR" ,"Distal", "Downstream", 
+                                            "Exon","Intron","Promoter"))
+## mm10
+ggplot(mm10, aes(x = Annot2)) +
+  geom_bar() +
+  theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "", title = "mm10")
+
+# unique(ManifestHorvath$HG38.main_Categories)
+ManifestHorvath$HG38.main_Categories[ManifestHorvath$HG38.main_Categories == "threeUTR"] <- "3' UTR"
+ManifestHorvath$HG38.main_Categories[ManifestHorvath$HG38.main_Categories == "fiveUTR"] <- "5' UTR"
+ManifestHorvath$HG38.main_Categories<- factor(ManifestHorvath$HG38.main_Categories, 
+                                              levels = c("3' UTR", "5' UTR" ,"Intergenic_upstream", 
+                                                         "Intergenic_downstream","Exon","Intron","Promoter"))
+## hovarth
+ggplot(ManifestHorvath, aes(x = HG38.main_Categories)) +
+  geom_bar() +
+  theme_bw() + 
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1), plot.title = element_text(hjust = 0.5)) +
+  labs(x = "", title = "hg38")
+
+```
+
+
+
