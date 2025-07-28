@@ -9,23 +9,21 @@
 ## ---------- Notes -----------------
 
 
-#-------------- input -------------
+#-------------- Input -------------
 
-rootDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/1_Projects/AD_Mouse_Model/rTg4510_mice_methylation_paper/0_ZenOutput/"
 scriptDir = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/AD_mouse_methylation/"
-LOGEN_ROOT = "C:/Users/sl693/OneDrive - University of Exeter/ExeterPostDoc/2_Scripts/LOGEN/"
-source(paste0(scriptDir, "import.config"))
-source(paste0(scriptDir, "0_PaperFigs/Functions.R"))
 source(paste0(scriptDir, "0_PaperFigs/paper_import.config.R"))
-source(paste0(scriptDir, "3_ArrayRRBSComparison/functions/summaryStatsDMP.R"))
-source(paste0(LOGEN_ROOT, "/aesthetics_basics_plots/draw_venn.R"))
 
-#-------------- Figures -------------
+#-------------- Supplementary Figures -------------
 
-# plot RRBS CpG sites by annotation
+## --- Figure 1: plot RRBS CpG sites by annotation
+
 plot_annotate_sites()
+plot_grid(pCluster$rTg4510Genotype$gtable, pCluster$rTg4510Pathology$gtable)
 
-# correlation of probes for RRBS vs Array
+
+## --- Figure 2: correlation of probes for RRBS vs Array
+
 # rTg4510
 rTg4510_common_probes <- commonStatsDescription(rTg4510_rrbs_beta, rTg4510_array_beta)
 rTg4510_corr_arrayRRBS <- corrPlotCommonProbes(rTg4510_rrbs_beta, rTg4510_array_beta, rTg4510_common_probes)
@@ -34,64 +32,17 @@ J20_common_probes <- commonStatsDescription(J20_rrbs_beta, J20_array_beta)
 J20_corr_arrayRRBS <- corrPlotCommonProbes(J20_rrbs_beta, J20_array_beta, J20_common_probes)
 plot_grid(rTg4510_corr_arrayRRBS, J20_corr_arrayRRBS)
 
-# heatmap of top 1000 genotype and pathology
-pCluster = list(
-  rTg4510Genotype = cluster_DMP(model="rTg4510", arrayBeta = rTg4510_array_beta, rrbsBeta = rTg4510_rrbs_beta, 
-                                phenotypeInput=phenotype$rTg4510, lstPositions=sigRes$rTg4510$Genotype$Position),
-  rTg4510Pathology = cluster_DMP(model="rTg4510", arrayBeta = rTg4510_array_beta, rrbsBeta = rTg4510_rrbs_beta, 
-                                 phenotypeInput=phenotype$rTg4510, lstPositions=sigRes$rTg4510$Pathology$Position),
-  J20Genotype = cluster_DMP(model="J20", arrayBeta = J20_array_beta, rrbsBeta = J20_rrbs_beta, 
-                            phenotypeInput=phenotype$J20, lstPositions=sigRes$J20$Genotype$Position),
-  J20Pathology = cluster_DMP(model="J20", arrayBeta = J20_array_beta, rrbsBeta = J20_rrbs_beta, 
-                             phenotypeInput=phenotype$J20, lstPositions=sigRes$J20$Pathology$Position)
-)
-plot_grid(pCluster$rTg4510Genotype$gtable, pCluster$rTg4510Pathology$gtable)
-plot_grid(pCluster$J20Genotype$gtable, pCluster$J20Pathology$gtable)
 
-# magniture of effect size in J20 vs rTg4510  
-ggplot(comparison_effect_size, aes(x = BetaSize_Genotype, fill = model)) + geom_density(alpha = 0.3) +
-  theme_classic() +
-  labs(x = "Effect size (Genotype)", y = "Density", fill = "Mouse model")
+## --- Figure 3: Top-ranked DMPs in rTg4510 genotype due to transgene
 
-# manhattan plots 
-pManhattan <- list(
-  rTg4510Genotype = plot_manhattan_final(sigRes$rTg4510, "Genotype"),
-  rTg4510Pathology = plot_manhattan_final(sigRes$rTg4510, "Pathology"),
-  J20Genotype = plot_manhattan_final(sigRes$J20, "Genotype"),
-  J20Pathology = plot_manhattan_final(sigRes$J20, "Pathology")
-)
-plot_grid(pManhattan$rTg4510Genotype,pManhattan$rTg4510Pathology)
-plot_grid(pManhattan$J20Genotype,pManhattan$J20Pathology)
-
-# venn diagram of positions
-plot_grid(twovenndiagrams(sigRes$rTg4510$Genotype$Position, sigRes$rTg4510$Pathology$Position, "Genotype","Pathology"))
-plot_grid(twovenndiagrams(sigRes$J20$Genotype$Position, sigRes$J20$Pathology$Position, "Genotype","Pathology"))
-
-# top-ranked DMPs in rTg4510 genotype due to transgene
 Mapt <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Mapt", "ENSMUST00000100347.10", boxplot = TRUE, colour = "rTg4510")
 Prnp <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, c("Prn","Prnp"), "ENSMUST00000091288.12", colour = "rTg4510")
 Fgf14 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Fgf14", "ENSMUST00000095529.9", boxplot = TRUE, colour = "rTg4510")
 Ncapg2 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Ncapg2", "ENSMUST00000084828.4", boxplot = TRUE, colour = "rTg4510")
 
-# top-ranked DMPs in rTg4510 genotype 
-Dcaf5 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Dcaf5", "ENSMUST00000054145.7", boxplot = TRUE, colour = "rTg4510")
-Arsi <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Arsi", "ENSMUST00000040359.5", colour = "rTg4510")
-Ugt2b37 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Ugt2b37", "ENSMUST00000075858.3", colour = "rTg4510")
-Creb3l4 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Creb3l4", "ENSMUST00000029547.9", boxplot = TRUE, colour = "rTg4510")
-As3mt <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "As3mt", "ENSMUST00000003655.8", colour = "rTg4510")
 
+## --- Figure 4: Pyrosequencing of Prnp
 
-# top-ranked DMPs in rTg4510 pathology 
-Insyn2b <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Insyn2b", "ENSMUST00000165963.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
-Zfp423 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Zfp423", "ENSMUST00000109655.8", colour = "rTg4510", boxplot = TRUE, pathology = TRUE, position = "chr8:87750175")
-Ankrd52 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Ankrd52", "ENSMUST00000014642.9", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
-Adk <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Adk", "ENSMUST00000045376.10", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
-Cisd3 <- plotGeneTrackDMP(sigRes$rTg4510$Pathology, sigBeta$rTg4510$Pathology, phenotype$rTg4510, "Cisd3", "ENSMUST00000107584.7", colour = "rTg4510", boxplot = TRUE, pathology = TRUE)
-
-# plot DMP and Track for Prnp
-pPrnPrnPDMP <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, c("Prn","Prnp"), "ENSMUST00000091288.12")
-
-# input pyrosequencing results
 prnpPyroPos <- c(
   `Pos1Meth` = "chr2:131910162",
   `Pos2Meth` = "chr2:131910164",
@@ -99,7 +50,6 @@ prnpPyroPos <- c(
   `Pos4Meth` = "chr2:131910201"
 )
 prnpPyroPosdf <- reshape2::melt(prnpPyroPos, value.name = "Position") %>% tibble::rownames_to_column(., var = "prnpPosition")
-
 pPrnPrnpPyro <- input_pyro$prnp %>% 
   # keep only the samples that were in the final dataset
   filter(SAMPLE %in% row.names(phenotype$rTg4510)) %>% 
@@ -119,265 +69,62 @@ pPrnPrnpPyro <- input_pyro$prnp %>%
         strip.background = element_blank()) 
 
 
+## --- Figure 5: Effect size of ECX vs HIP in rTg4510
 
-plot_pyro_rrbs_corr(input_pyro$prnp, prnpPyroPosdf, rTg4510_rrbs_beta, phenotype$rTg4510)
-
-# plot DMP and Track for Ank1
-pAnk1DMP <- plotGeneTrackDMP(sigResults=sigRes$rTg4510$Genotype, betaMatrix=sigBeta$rTg4510$Genotype, phenotypeFile=phenotype$rTg4510, 
-                             gene="Ank1", transcript="ENSMUST00000110688.8", colour = "rTg4510", boxplot = TRUE)
-
-tAnk1DMP <- plot_DMP(betaMatrix=sigBeta$rTg4510$Genotype, phenotypeFile=phenotype$rTg4510, 
-         position = c("chr8:23023240","chr8:23023210","chr8:23023192"), table = TRUE) %>% 
-  mutate(method = "RRBS")
-
-
-ank1PyroPos <- c(
-  `Pos1Meth` = "chr8:23023192",
-  #`Pos2Meth` = "chr8:23023210",
-  `Pos3Meth` = "chr8:23023240"
-)
-ank1PyroPosdf <- reshape2::melt(ank1PyroPos, value.name = "Position") %>% tibble::rownames_to_column(., var = "prnpPosition")
-
-tAnk1Pyro <- input_pyro$ank1 %>% dplyr::select(SAMPLE, Age, Group.ID, Pos1Meth, Pos3Meth) %>% 
-  reshape2::melt(id = c("Age","Group.ID","SAMPLE"), variable.name = "Position", value.name = "methylation") %>% 
-  mutate(Age = as.factor(stringr::str_remove(Age,"m"))) %>% 
-  mutate(Group.ID = factor(Group.ID, levels = c("WT","TG"))) %>%
-  merge(., phenotype$rTg4510, by.x = "SAMPLE", by.y = 0)%>% 
-  merge(., reshape2::melt(ank1PyroPos, value.name = "position"), by.x = "Position", by.y = 0) %>% 
-  dplyr::rename("sample"= "Position") %>% mutate(method = "Pyrosequencing") %>%
-  mutate(methylation = methylation/100) 
-
-pAnk1PyroRRBS <- rbind(tAnk1DMP, tAnk1Pyro %>% dplyr::select(colnames(tAnk1DMP))) %>% 
-  mutate(method = factor(method, levels = c("RRBS","Pyrosequencing"))) %>%
-  ggplot(., aes(x = Genotype, y = methylation, fill = Genotype)) + geom_boxplot(outlier.shape = NA) +
-  geom_jitter(aes(colour = Genotype),width = 0.25, size = 2) +
-  scale_fill_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
-  scale_colour_manual(values = c("black", color_Tg4510_TG),guide="none") +
-  labs(x = "Genotype", y = "Methylation") +
-  facet_nested(~ position + method) +
-  theme_classic() + 
-  theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        strip.background = element_blank()) 
+p5 <- effectSizeComparisons(rTg4510_array_results$Genotype, rTg4510_HIP_array_results$Genotype, "Array", "Genotype", "HIP", animal="rTg4510")
+p6 <- effectSizeComparisons(rTg4510_array_results$Pathology, rTg4510_HIP_array_results$Pathology, "Array", "Pathology", "HIP", animal="rTg4510")
+p7 <- effectSizeComparisons(rTg4510_array_sig$ECX$Genotype, rTg4510_array_sig$HIP$Genotype, "Array", "Genotype", "HIP", animal = "rTg4510")
+p8 <- effectSizeComparisons(rTg4510_array_sig$ECX$Pathology, rTg4510_array_sig$HIP$Pathology, "Array", "Pathology", "HIP", animal = "rTg4510")
+pdf(paste0(output,"Figures/rTg4510ECXvsHIP.pdf"),  width = 10, height = 15)
+plot_grid(p5,p6,p7,p8,labels = c("A","B","C","D"))
+dev.off()
 
 
-pAnk1Pyro <- input_pyro$ank1 %>% dplyr::select(Age, Group.ID, Pos1Meth, Pos3Meth) %>% 
-  reshape2::melt(id = c("Age","Group.ID"), variable.name = "Position", value.name = "methylation") %>% 
-  mutate(Age = as.factor(stringr::str_remove(Age,"m"))) %>% 
-  mutate(Group.ID = factor(Group.ID, levels = c("WT","TG"))) %>%
-  ggplot(., aes(x = Group.ID, y = methylation, fill = Group.ID)) + geom_boxplot(aes(fill = Group.ID), outlier.shape = NA) + 
-  facet_grid(~Position, labeller = as_labeller(ank1PyroPos)) +
-  #geom_point(aes(fill = Sample.group), size = 2, shape = 21, position = position_jitterdodge()) +
-  scale_fill_manual(values = c(alpha("black",0.2), color_Tg4510_TG),guide="none") +
-  scale_colour_manual(values = c("black", color_Tg4510_TG),guide="none") +
-  labs(x = "Genotype", y = "Methylation (%)") + theme_classic() +
-  theme(panel.border = element_rect(fill = NA, color = "grey", linetype = "dotted"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        strip.background = element_blank()) 
-
-
-plot_pyro_rrbs_corr(input_pyro$ank1, ank1PyroPosdf, rTg4510_rrbs_beta, phenotype$rTg4510)
-
-
-# common DMPs in rTg4510 and J20 pathology
-intersect(sigRes$J20$Pathology$Position, sigRes$rTg4510$Pathology$Position)
-
-plot_DMP(model="rTg4510", betaMatrix=sigBeta$rTg4510$Pathology, 
-         phenotypeFile=phenotype$rTg4510, position = intersect(sigRes$J20$Pathology$Position, sigRes$rTg4510$Pathology$Position), pathology = TRUE)
-
-plot_DMP(model="J20", betaMatrix=sigBeta$J20$Pathology, 
-         phenotypeFile=phenotype$J20, position = intersect(sigRes$J20$Pathology$Position, sigRes$rTg4510$Pathology$Position), pathology = TRUE)
-
-
-sigRes$rTg4510$Pathology[sigRes$rTg4510$Pathology$Position %in% intersect(sigRes$J20$Pathology$Position, sigRes$rTg4510$Pathology$Position),]
-sigRes$J20$Pathology[sigRes$J20$Pathology$Position %in% intersect(sigRes$J20$Pathology$Position, sigRes$rTg4510$Pathology$Position),]
-
-
-# J20 
-Nutf2 <- plotGeneTrackDMP(sigRes$J20$Genotype, sigBeta$J20$Genotype, phenotype$J20, "Nutf2", "ENSMUST00000008594.8", colour = "J20", boxplot = TRUE)
-Tenm2 <- plotGeneTrackDMP(sigRes$J20$Genotype, sigBeta$J20$Genotype, phenotype$J20, "Tenm2", "ENSMUST00000102801.7", colour = "J20", boxplot = TRUE)
-Ncam2 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Ncam2", "ENSMUST00000037785.13", colour = "J20", pathology =  TRUE, boxplot = TRUE)
-Prmt8 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Prmt8", "ENSMUST00000032500.8", colour = "J20", boxplot = TRUE, pathology = TRUE)
-Zfp518b <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Zfp518b", "ENSMUST00000179555.7", colour = "J20", boxplot = TRUE, pathology = TRUE)
-Zmiz1 <- plotGeneTrackDMP(sigRes$J20$PathologyCommonInteraction, sigBeta$J20$Pathology, phenotype$J20, "Zmiz1", "ENSMUST00000162645.7", colour = "J20", boxplot = TRUE, pathology = TRUE)
-Grk2 <- plotGeneTrackDMP(sigRes$J20$Pathology, sigBeta$J20$Pathology, phenotype$J20, "Grk2", "ENSMUST00000167511.2", colour = "J20", boxplot = TRUE, pathology = TRUE)
-Fgfr2 <- plotGeneTrackDMP(sigRes$J20$Pathology, sigBeta$J20$Pathology, phenotype$J20, "Fgfr2", "ENSMUST00000117073.1", colour = "J20", boxplot = TRUE, pathology = TRUE)
-
-plot_grid(Nutf2, Tenm2, scale = 0.9, labels = c("i","ii"))
-plot_grid(Grk2, Fgfr2, Ncam2, Zmiz1, scale = 0.9, labels = c("i","ii","iii","iv"))
-
-# venn diagram of hippocampus vs entorhinal cortex
-HipECXVennrTg4510 <- plot_grid(venn.diagram(
-  x = list(rTg4510_array_sig$ECX$Genotype$position, rTg4510_array_sig$ECX$Pathology$position,  
-           rTg4510_array_sig$HIP$Genotype$position, rTg4510_array_sig$HIP$Pathology$position),
-  category.names = c("ECX_Genotype" , "ECX_Pathology", "HIP_Genotype", "HIP_Pathology"),
-  fill = pastelColours,
-  filename = NULL
-))
-
-HipECXVennJ20 <- plot_grid(venn.diagram(
-  x = list(J20_array_sig$ECX$Genotype$position, J20_array_sig$ECX$Pathology$position,  
-           J20_array_sig$HIP$Genotype$position, J20_array_sig$HIP$Pathology$position),
-  category.names = c("ECX_Genotype" , "ECX_Pathology", "HIP_Genotype", "HIP_Pathology"),
-  fill = pastelColours,
-  filename = NULL
-))
-plot_grid(HipECXVennrTg4510,HipECXVennJ20, scale = 0.9, labels = c("i","ii"))
-
-ECXrTg4510Unique2HIP <- setdiff(
-  # ECX
-  c(rTg4510_array_sig$ECX$Genotype$position,
-                  intersect(rTg4510_array_sig$ECX$Interaction$position, rTg4510_array_sig$ECX$Pathology$position)),
-  # HIP
-  c(rTg4510_array_sig$HIP$Genotype$position,
-          intersect(rTg4510_array_sig$HIP$Interaction$position, rTg4510_array_sig$HIP$Pathology$position)))
-
-
-rbind(
-  rTg4510_array_sig$ECX$Genotype[rTg4510_array_sig$ECX$Genotype$position %in% ECXrTg4510Unique2HIP,] %>% 
-    arrange(FDR_adj_Genotype) %>% 
-    dplyr::select(position, cpg, FDR_adj_Genotype, ChIPseeker_GeneSymbol, distanceToTSS) %>% 
-    rename("FDR_adj_Genotype" = "FDR_adj") %>% mutate(test = "genotype"),
-  rTg4510_array_sig$ECX$Pathology[rTg4510_array_sig$ECX$Pathology$position %in% ECXrTg4510Unique2HIP,] %>% 
-    arrange(FDR_adj_Pathology) %>% 
-    dplyr::select(position, cpg, FDR_adj_Pathology, ChIPseeker_GeneSymbol, distanceToTSS) %>%
-    rename("FDR_adj_Pathology" = "FDR_adj") %>% mutate(test = "pathology")
-)
+## --- Figure 6: Common DMPs between rTg4510 ECX and HIP
 
 commonECXHIPplots <- list(
   Dcaf5 = plot_DMP_byTissue(ECXbetaMatrix=sigBeta$rTg4510$Genotype, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                  ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr12:80436248"),
+                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr12:80436248"),
   Satb1  = plot_DMP_byTissue(ECXbetaMatrix=sigBeta$rTg4510$Genotype, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr17:51746925"),
+                             ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr17:51746925"),
   Cltc  = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                             ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr11:8670046"),
+                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr11:8670046"),
   Mapt = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                              ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr11:104318231"),
+                           ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr11:104318231"),
   Ncapg2  = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr12:116425797"),
+                              ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr12:116425797"),
   Fgf14 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                          ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr14:124676565")
+                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr14:124676565")
 )
-
 plot_grid(plotlist = commonECXHIPplots, labels = c("A","B","C","D","E","F"), scale = 0.9)
 
-commonECXHIPrTg4510plots <- list(
-  Dennd1a = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                              ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr2:37946161", 
-                              pathology = TRUE, gene = "Dennd1a"),
-  Rapgefl1 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                              ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr11:98838683", 
-                              pathology = TRUE, gene = "Rapgefl1")
-)
-plot_grid(plotlist = commonECXHIPrTg4510plots, labels = c("i","ii"), scale = 0.9)
+## --- Figure 7: Effect size of ECX vs HIP in J20
 
-HIPrTg4510plots <- list(
-  Pxk = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                          ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr14:8146212", 
-                          gene = "Pxk"),
-  Mef2c = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                    ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:83504232", 
-                    gene = "Mef2c"),
-  Agbl5 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                    ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr5:30890202", pathology = TRUE, 
-                    gene = "Agbl5"),
-  Meis2 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                             ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr2:116018971", pathology = TRUE, 
-                             gene = "Meis2")
-)
-plot_grid(plotlist = HIPrTg4510plots, labels = c("i","ii","iii","iv"), scale = 0.9)
-
-HIPJ20plots <- list(
-  Mir568  = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                          ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr16:43609394", 
-                          gene = "Mir568", model = "J20"),
-  Mctp1 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:76810803", 
-                            gene = "Mctp1", model = "J20"),
-  Sox4 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                            ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:28949481", 
-                            gene = "Sox4", model = "J20", pathology = TRUE),
-  Cetn3 = plot_DMP_byTissue(ECXbetaMatrix=rTg4510_array_beta, HIPbetaMatrix=rTg4510_array_HIP_beta, 
-                           ECXphenotypeFile=phenotype$rTg4510, HIPphenotypeFile=phenotype$rTg4510_HIP, position ="chr13:81828611", pathology = TRUE, 
-                           gene = "Cetn3", model = "J20")
-)
-plot_grid(plotlist = HIPJ20plots, labels = c("i","ii","iii","iv"), scale = 0.9)
+p9 <- effectSizeComparisons(J20_array_results$Genotype, J20_HIP_array_results$Genotype, "Array", "Genotype", "HIP", animal="J20")
+p10 <- effectSizeComparisons(J20_array_results$Pathology, J20_HIP_array_results$Pathology, "Array", "Pathology", "HIP", animal="J20")
+p11 <- effectSizeComparisons(J20_array_sig$ECX$Genotype, J20_array_sig$HIP$Genotype, "Array", "Genotype", "HIP", animal = "J20")
+p12 <- effectSizeComparisons(J20_array_sig$ECX$Pathology, J20_array_sig$HIP$Pathology, "Array", "Pathology", "HIP", animal = "J20")
+pdf(paste0(output,"Figures/J20ECXvsHIP.pdf"),  width = 10, height = 15)
+plot_grid(p9,p10,p11,p12,labels = c("A","B","C","D"))
+dev.off()
 
 
-# hippocampus plots
-plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr4:109806599", pathology = TRUE)
-plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr4:109806599", interaction = TRUE)
-plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr2:37946161", pathology = TRUE)
-plot_DMP(betaMatrix=rTg4510_array_HIP_beta, phenotypeFile=phenotype$rTg4510_HIP, position = "chr2:37946161", interaction = TRUE)
+## --- Figure 8: Epigenetic clock
 
+load(file = paste0(zenDir, "/5_epigeneticClock/rTg4510Clock.RData"))
+load(file = paste0(zenDir, "/5_epigeneticClock/J20Clock.RData"))
 
-# human comparisons
-# ECX
-sigRes$rTg4510 <- lapply(sigRes$rTg4510, function(x) x %>% filter(ChIPseeker_GeneSymbol != "NA"))
-sigRes$J20 <- lapply(sigRes$J20, function(x) x %>% filter(ChIPseeker_GeneSymbol != "NA"))
-pHuman1 <- venn.diagram(
-  x = list(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol),
-           c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol, sigRes$J20$Pathology$ChIPseeker_GeneSymbol), 
-           humanAllGeneList),
-  category.names = c("rTg4510","J20","Human"),
-  fill = c(label_colour("rTg4510"), label_colour("J20"),"yellow"),
-  filename = NULL
+plot_grid(
+  plot_clock(rTg4510Clocks$ECX,"ECX",model="rTg4510", boxplot = FALSE),
+  plot_clock(rTg4510Clocks$HIP,"HIP",model="rTg4510", boxplot = FALSE),
+  plot_clock(J20Clocks$ECX,"ECX",model="J20", boxplot = FALSE),
+  plot_clock(J20Clocks$HIP,"HIP",model="J20", boxplot = FALSE),
+  labels = c("A","B","C","D")
 )
 
-pHuman2 <- venn.diagram(
-  x = list(c(sigRes$rTg4510$Genotype$ChIPseeker_GeneSymbol,sigRes$rTg4510$Pathology$ChIPseeker_GeneSymbol),
-           humanTauGeneList),
-  category.names = c("rTg4510", "Human"),
-  fill = c(label_colour("rTg4510"), "yellow"),
-  filename = NULL
-)
-
-pHuman3 <- venn.diagram(
-  x = list(c(sigRes$J20$Genotype$ChIPseeker_GeneSymbol,sigRes$J20$Pathology$ChIPseeker_GeneSymbol),
-           humanAmyloidGeneList),
-  category.names = c("J20_ECX", "Human"),
-  fill = c(label_colour("J20"), "yellow"),
-  filename = NULL
-)
-
-plot_grid(pHuman1, plot_grid(pHuman2,pHuman3, ncol = 1, labels = c("ii","iii")), labels = c("i"))
+## --- Figure 9: Prdm16
 
 Prdm16_J20 <- plotGeneTrackDMP(sigRes$J20$Genotype, sigBeta$J20$Genotype, phenotype$J20, "Prdm16", "ENSMUST00000030902.12", colour = "J20", boxplot = TRUE)
 Prdm16_rTg4510 <- plotGeneTrackDMP(sigRes$rTg4510$Genotype, sigBeta$rTg4510$Genotype, phenotype$rTg4510, "Prdm16", "ENSMUST00000030902.12", colour = "rTg4510", boxplot = TRUE)
 plot_grid(Prdm16_rTg4510,Prdm16_J20, labels = c("i","ii"), nrow = 1, scale = 0.95)
 plot_DMP(sigBeta$rTg4510$Genotype, phenotype$rTg4510, position = c("chr4:154346846"))
-
-# top-ranked J20 vs human
-Tspan14 <- plotGeneTrackDMP(sigResults=sigRes$J20$Genotype, betaMatrix=sigBeta$J20$Genotype, phenotypeFile=phenotype$J20, 
-                 gene="Tspan14", transcript="ENSMUST00000047652.5", colour = "J20", boxplot = TRUE,
-                 position = "chr14:40966816")
-
-#-------------- Output -------------
-
-plot_grid(pCluster$rTg4510Genotype$gtable, pCluster$rTg4510Pathology$gtable)
-plot_grid(Mapt, Prnp, Ncapg2, Fgf14, labels = c("A","B","C","D"), scale = 0.9)
-plot_grid(Dcaf5, Arsi, Creb3l4, As3mt, labels = c("i","ii","iii","iv"), scale = 0.9)
-plot_grid(Cisd3, Zfp423, Adk, Insyn2b, labels = c("i","ii","iii","iv"), scale = 0.9)
-
-plot_grid(pPrnPrnPDMP,pPrnPrnpPyro, rel_heights = c(0.6,0.4), labels = c("A","B"))
-plot_grid(pAnk1DMP,pAnk1Pyro, rel_heights = c(0.6,0.4), labels = c("A","B"))
-plot_grid(
-  plot_DMP(model="rTg4510", betaMatrix=sigBeta$rTg4510$Genotype, phenotypeFile=phenotype$rTg4510, sig = sigRes$rTg4510$Genotype),
-  plot_DMP(model="rTg4510", betaMatrix=sigBeta$rTg4510$Pathology, phenotypeFile=phenotype$rTg4510, sig=sigRes$rTg4510$Pathology, pathology = TRUE),
-  nrow=2
-)
-
-plot_grid(
-  plot_DMP(model="J20", betaMatrix=sigBeta$J20$Genotype, phenotypeFile=phenotype$J20, sig = sigRes$J20$Genotype), 
-  plot_DMP(model="J20", betaMatrix=sigBeta$J20$Pathology, phenotypeFile=phenotype$J20, sig = sigRes$J20$Pathology, pathology = TRUE), 
-  nrow=2
-)
-
-pdf(paste0(dirnames$paper,"/resFigures/TopResults_GenotypePathology.pdf"), width = 15, height = 8)
-plot_DMP(model="rTg4510", betaMatrix=sigBeta$rTg4510$Genotype, phenotypeFile=phenotype$rTg4510, sig = sigRes$rTg4510$Genotype) 
-plot_DMP(model="rTg4510", betaMatrix=sigBeta$rTg4510$Pathology, phenotypeFile=phenotype$rTg4510, sig=sigRes$rTg4510$Pathology, pathology = TRUE) 
-plot_DMP(model="J20", betaMatrix=sigBeta$J20$Genotype, phenotypeFile=phenotype$J20, sig = sigRes$J20$Genotype) 
-plot_DMP(model="J20", betaMatrix=sigBeta$J20$Pathology, phenotypeFile=phenotype$J20, sig = sigRes$J20$Pathology, pathology = TRUE) 
-dev.off()
